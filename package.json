@@ -1,0 +1,14 @@
+{
+  "name": "bioagent-slurm",
+  "version": "1.0.0",
+  "description": "BioAgent 三代宏基因组 - Slurm 集群后端",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ssh2": "^1.15.0",
+    "cors": "^2.8.5"
+  }
+}

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPC 集群监控 · 环境生物电化学中心</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+            background: #F5F7FA;
+            color: #2d3748;
+            min-height: 100vh;
+            font-size: 17px;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 8px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
+        .app { max-width: 1500px; margin: 0 auto; padding: 14px 18px 40px; }
+
+        /* 顶部导航栏 */
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 20px;
+            background: #fff;
+            border: 1px solid #e8edf2;
+            border-radius: 60px;
+            margin-bottom: 16px;
+            flex-wrap: wrap; gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .topbar-left { display: flex; align-items: center; gap: 14px; }
+        .topbar-left .brand {
+            font-weight: 700; font-size: 1.05rem;
+            color: #1a202c;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .topbar-left .brand .logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, #3182ce, #2b6cb0);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 0.85rem;
+        }
+        .topbar-left .brand .title-sub {
+            font-weight: 400; font-size: 0.8rem; color: #718096;
+        }
+        .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+        /* 连接状态 */
+        .conn-status {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 14px 4px 10px; border-radius: 30px;
+            font-size: 0.82rem; cursor: pointer;
+            background: #f7fafc; border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+        .conn-status:hover { border-color: #cbd5e0; }
+        .conn-status .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot.gray { background: #a0aec0; }
+        .dot.green { background: #48bb78; box-shadow: 0 0 6px rgba(72,187,120,0.4); }
+        .dot.red { background: #fc8181; box-shadow: 0 0 6px rgba(252,129,129,0.4); }
+        .dot.yellow { background: #ecc94b; box-shadow: 0 0 6px rgba(236,201,75,0.3); }
+
+        /* 按钮 */
+        .btn {
+            background: linear-gradient(135deg, #3182ce, #2b6cb0);
+            border: none;
+            padding: 7px 18px; border-radius: 60px;
+            color: #fff; font-weight: 600;
+            font-size: 0.85rem; cursor: pointer; transition: 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn:hover { transform: scale(1.02); opacity: 0.95; }
+        .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+        .btn-sm { padding: 5px 14px; font-size: 0.78rem; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            color: #4a5568;
+        }
+        .btn-outline:hover { background: #edf2f7; }
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+        }
+        .btn-success:hover { opacity: 0.95; transform: scale(1.02); }
+
+        /* 模态框头部按钮 */
+        .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .modal-header h2 { margin-bottom: 0; }
+        .modal-header-btns { display: flex; gap: 6px; }
+        .btn-minimize, .btn-close {
+            background: none; border: none; font-size: 1.3rem;
+            cursor: pointer; color: #718096; padding: 0 4px;
+            line-height: 1; border-radius: 4px; transition: all 0.15s;
+        }
+        .btn-minimize:hover, .btn-close:hover { background: rgba(0,0,0,0.06); color: #2d3748; }
+
+        /* 用户头像 + 下拉菜单 */
+        .user-avatar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 3px 10px 3px 3px; border-radius: 30px;
+            background: #f7fafc; border: 1px solid #e2e8f0;
+            font-size: 0.82rem; color: #4a5568; cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .user-avatar:hover { border-color: #cbd5e0; }
+        .user-avatar .av {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, #3182ce, #2b6cb0);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; font-weight: 700; color: #fff;
+        }
+        .user-dropdown {
+            display: none;
+            position: absolute; top: 100%; right: 0; margin-top: 4px;
+            background: #fff; border: 1px solid #e2e8f0;
+            border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            padding: 4px 0; min-width: 200px; z-index: 100;
+        }
+        .user-dropdown.show { display: block; }
+        .user-dropdown .drop-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; font-size: 0.78rem; color: #4a5568;
+            text-decoration: none; cursor: default;
+        }
+        .user-dropdown .drop-item .val {
+            margin-left: auto; color: #2b6cb0; font-weight: 600; font-size: 0.82rem;
+        }
+        .user-dropdown .drop-item.disabled { opacity: 0.5; cursor: default; }
+        .user-dropdown .drop-item.clickable { cursor: pointer; }
+        .user-dropdown .drop-item.clickable:hover { background: #edf2f7; }
+        .user-dropdown .drop-item.logout { color: #e53e3e; cursor: pointer; }
+        .user-dropdown .drop-item.logout:hover { background: #fff5f5; }
+        .user-dropdown .drop-item i { width: 16px; text-align: center; color: #718096; }
+        .user-dropdown .drop-item.logout i { color: #e53e3e; }
+        .user-dropdown .divider { height: 1px; background: #edf2f7; margin: 4px 8px; }
+
+        /* 摘要卡片 */
+        .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .sum-card {
+            background: #fff; border: 1px solid #e8edf2;
+            border-radius: 14px; padding: 16px 18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            transition: all 0.2s;
+        }
+        .sum-card:hover { border-color: #cbd5e0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .sum-card .sc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .sum-card .sc-label { font-size: 0.75rem; color: #718096; font-weight: 500; }
+        .sum-card .sc-value { font-size: 1.8rem; font-weight: 700; color: #1a202c; }
+        .sum-card .sc-sub { font-size: 0.75rem; color: #718096; margin-top: 3px; }
+        .sum-card .sc-bar { height: 4px; border-radius: 4px; background: #edf2f7; margin-top: 8px; overflow: hidden; }
+        .sum-card .sc-bar .fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+
+        .section-title {
+            font-size: 0.92rem; font-weight: 500; color: #4a5568;
+            display: flex; align-items: center; gap: 8px; margin: 0 0 12px 0;
+        }
+        .section-title i { color: #3182ce; }
+        .section-title .badge {
+            font-size: 0.65rem; padding: 2px 10px; border-radius: 10px; font-weight: 600; margin-left: 4px;
+        }
+        .badge-green { background: #c6f6d5; color: #276749; }
+        .badge-yellow { background: #fefcbf; color: #975a16; }
+        .badge-red { background: #fed7d7; color: #9b2c2c; }
+        .badge-blue { background: #bee3f8; color: #2a4365; }
+
+        /* 节点卡片 */
+        .node-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .node-card {
+            background: #fff; border: 1px solid #e8edf2;
+            border-radius: 14px; padding: 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            transition: all 0.2s;
+        }
+        .node-card:hover {
+            border-color: #bee3f8;
+            box-shadow: 0 4px 12px rgba(49,130,206,0.08);
+            background: #f7fafc;
+        }
+        .node-card.nc-idle { border-left: 3px solid #48bb78; }
+        .node-card.nc-mix  { border-left: 3px solid #ecc94b; }
+        .node-card.nc-alloc{ border-left: 3px solid #fc8181; }
+        .node-card .nc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .node-card .nc-name { font-weight: 600; font-size: 0.9rem; color: #1a202c; }
+        .node-card .nc-state { font-size: 0.68rem; padding: 2px 10px; border-radius: 8px; font-weight: 600; }
+        .node-card .nc-stat { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; font-size: 0.8rem; }
+        .node-card .nc-stat .row { display: flex; justify-content: space-between; color: #718096; }
+        .node-card .nc-stat .row .v { color: #2d3748; }
+        .node-card .nc-bar { margin-top: 8px; }
+        .node-card .nc-bar .bar-label { display: flex; justify-content: space-between; font-size: 0.7rem; color: #a0aec0; margin-bottom: 3px; }
+        .node-card .nc-bar .track { height: 6px; background: #edf2f7; border-radius: 6px; overflow: hidden; margin-bottom: 6px; }
+        .node-card .nc-bar .track .fill { height: 100%; border-radius: 6px; transition: width 0.5s; }
+        .node-card .nc-partitions { font-size: 0.75rem; color: #a0aec0; margin-top: 6px; }
+
+        /* 分区 */
+        .part-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .part-box {
+            background: #fff; border: 1px solid #e8edf2;
+            border-radius: 12px; padding: 14px; text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            transition: all 0.2s;
+        }
+        .part-box:hover { border-color: #cbd5e0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .part-box .pb-name { font-size: 0.9rem; font-weight: 600; color: #2d3748; }
+        .part-box .pb-stat { font-size: 0.8rem; color: #718096; margin-top: 5px; }
+        .part-box .pb-bar { margin-top: 8px; height: 8px; border-radius: 6px; background: #edf2f7; overflow: hidden; }
+        .part-box .pb-bar .pb-fill { height: 100%; border-radius: 6px; }
+
+        /* 磁盘 */
+        .disk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .disk-card {
+            background: #fff; border: 1px solid #e8edf2;
+            border-radius: 14px; padding: 16px 18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            transition: all 0.2s;
+        }
+        .disk-card:hover { border-color: #cbd5e0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .disk-card .dc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .disk-card .dc-mount { font-size: 0.9rem; font-weight: 600; color: #2d3748; }
+        .disk-card .dc-fs { font-size: 0.7rem; color: #a0aec0; }
+        .disk-card .dc-stats { display: flex; justify-content: flex-end; gap: 14px; font-size: 0.86rem; margin-top: 6px; flex-wrap: wrap; }
+        .disk-card .dc-stats span { color: #718096; display: inline-flex; align-items: center; gap: 4px; }
+        .disk-card .dc-stats .val { color: #2d3748; font-weight: 600; }
+        .disk-card .dc-bar { height: 8px; border-radius: 6px; background: #edf2f7; margin-top: 8px; overflow: hidden; }
+        .disk-card .dc-bar .fill { height: 100%; border-radius: 6px; }
+
+        /* 任务表 */
+        .job-wrap {
+            background: #fff; border: 1px solid #e8edf2;
+            border-radius: 14px; overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .job-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .job-table th {
+            text-align: left; padding: 10px 12px; color: #718096; font-weight: 500;
+            font-size: 0.72rem; border-bottom: 1px solid #edf2f7;
+            background: #f7fafc;
+        }
+        .job-table td { padding: 9px 12px; border-bottom: 1px solid #edf2f7; color: #4a5568; }
+        .job-table tr:hover td { background: #f7fafc; }
+        .job-st-R { color: #48bb78; font-weight: 600; }
+        .job-st-PD { color: #d69e2e; font-weight: 600; }
+        .job-st-CG { color: #3182ce; font-weight: 600; }
+        .job-st-F { color: #fc8181; font-weight: 600; }
+        .job-st- { color: #a0aec0; }
+
+        /* 空状态 */
+        .empty-state { text-align: center; padding: 30px; color: #a0aec0; font-size: 0.88rem; }
+        .empty-state i { font-size: 1.6rem; opacity: 0.5; margin-bottom: 8px; display: block; }
+
+        /* 登录覆盖层 ── 全屏弹窗，未登录时显示 */
+        .login-overlay {
+            position: fixed; inset: 0; z-index: 999999;
+            background: linear-gradient(135deg, #e2e8f0, #edf2f7, #e2e8f0);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .login-overlay.hidden { display: none; }
+        .login-box {
+            background: rgba(255,255,255,0.97);
+            border: 1px solid rgba(0,0,0,0.06); border-radius: 28px;
+            padding: 36px 38px 30px; width: 520px; max-width: 92vw;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+        }
+        .login-box .login-header { text-align: center; margin-bottom: 20px; }
+        .login-box img.login-logo { height: 48px; width: auto; border-radius: 8px; margin-bottom: 8px; }
+        .login-box h1 { font-size: 1.35rem; font-weight: 700; color: #2c3e50; }
+        .login-box .login-sub { color: #718096; font-size: 0.83rem; margin-top: 2px; }
+        .login-box .login-sep { height: 1px; background: rgba(0,0,0,0.06); margin: 12px 0; }
+        .login-box .login-section-label {
+            font-size: 0.85rem; font-weight: 600; color: #4a5568;
+            display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+        }
+        .login-box .login-section-label i { color: #3182ce; }
+        .login-box .form-group { margin-bottom: 8px; }
+        .login-box .form-group label { display: block; font-size: 0.8rem; color: #718096; margin-bottom: 2px; }
+        .login-box .form-group input {
+            width: 100%; padding: 9px 14px; background: #f7fafc;
+            border: 1px solid rgba(0,0,0,0.08); border-radius: 30px;
+            color: #2d3748; font-size: 0.9rem; outline: none; text-align: center;
+        }
+        .login-box .form-group input:focus { border-color: #3182ce; box-shadow: 0 0 0 3px rgba(49,130,206,0.08); }
+        .login-box .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .login-box .login-error { color: #e53e3e; font-size: 0.82rem; margin-bottom: 4px; display: none; text-align: center; }
+        .login-box .login-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .login-box .login-actions .btn { flex: 1; justify-content: center; }
+        .login-box .conn-test-result {
+            margin-top: 6px; font-size: 0.8rem; padding: 4px 10px;
+            border-radius: 8px; text-align: center; min-height: 26px;
+        }
+        .login-box .login-hint {
+            font-size: 0.72rem; color: #a0aec0; margin-top: 10px; text-align: center; line-height: 1.4;
+        }
+        /* app 内容默认显示，登录覆盖层未隐藏时自动隐藏 */
+        .app-content { display: block; }
+        .app-content.login-hidden { display: none; }
+
+        /* 刷新进度条 */
+        .refresh-timer { height: 3px; background: #edf2f7; border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+        .refresh-timer .rt-fill { height: 100%; background: linear-gradient(90deg, #3182ce, #2b6cb0); width: 0%; border-radius: 3px; transition: width 0.5s linear; }
+
+        .tag { display: inline-block; padding: 1px 8px; border-radius: 8px; font-size: 0.65rem; font-weight: 600; }
+        .tag-idle { background: #c6f6d5; color: #276749; }
+        .tag-mix  { background: #fefcbf; color: #975a16; }
+        .tag-alloc{ background: #fed7d7; color: #9b2c2c; }
+        .tag-down { background: #fed7d7; color: #e53e3e; }
+        .tag-off  { background: #edf2f7; color: #718096; }
+
+        .toast {
+            position: fixed; top: 14px; right: 14px; z-index: 99999;
+            padding: 10px 20px; border-radius: 12px;
+            background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0; color: #2d3748; font-size: 0.88rem; display: none;
+        }
+
+        @media (max-width: 600px) {
+            .topbar { border-radius: 16px; }
+            .node-grid { grid-template-columns: 1fr; }
+            .summary-row { grid-template-columns: 1fr 1fr; }
+            .disk-grid { grid-template-columns: 1fr; }
+            .login-box { padding: 24px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-box">
+            <div class="login-header">
+                <img src="logo.png" class="login-logo" alt="Logo">
+                <h1>HPC 集群监控</h1>
+                <div class="login-sub">环境生物电化学中心 · Slurm 算力集群</div>
+            </div>
+
+            <div class="login-section-label"><i class="fas fa-user"></i> 用户名</div>
+            <div class="login-error" id="loginError">请输入用户名</div>
+            <div class="form-group">
+                <input id="loginInput" type="text" placeholder="请输入您的用户名"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+
+            <div class="login-sep"></div>
+
+            <div class="login-section-label"><i class="fas fa-server"></i> Slurm 集群连接</div>
+            <div class="form-group">
+                <label>集群地址</label>
+                <input id="cfgHost" placeholder="主机名或 IP"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>端口</label>
+                    <input id="cfgPort" type="number" value="22"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+                <div class="form-group"><label>SSH 用户</label>
+                    <input id="cfgUser" placeholder="集群登录用户名"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>SSH 密码</label>
+                <input id="cfgPass" type="password" placeholder="集群登录密码"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+
+            <div class="conn-test-result" id="connTestResult"></div>
+
+            <div class="login-actions">
+                <button class="btn btn-outline" id="btnTestConn" onclick="testConn()">
+                    <i class="fas fa-plug"></i> 测试连接
+                </button>
+                <button class="btn btn-success" id="btnLogin" onclick="doLogin()">
+                    <i class="fas fa-sign-in-alt"></i> 进入监控
+                </button>
+            </div>
+            <div class="login-hint">
+                💡 首次使用请填写集群信息并「测试连接」，确认成功后点「进入监控」
+            </div>
+        </div>
+    </div>
+
+    <div class="app-content" id="appContent">
+    <div class="app">
+        <div class="topbar">
+            <div class="topbar-left">
+                <span class="brand">
+                    <img src="logo.png" style="height:32px;width:auto;border-radius:6px;" alt="Logo">
+                    <span>
+                        环境生物电化学中心算力集群
+                        <span class="title-sub">HPC Cluster Monitor</span>
+                    </span>
+                </span>
+            </div>
+            <div class="topbar-right">
+                <div class="conn-status" id="connStatus" onclick="openLogin()">
+                    <span class="dot gray" id="connDot"></span>
+                    <span id="connLabel">未连接</span>
+                </div>
+                <button class="btn btn-outline" onclick="openLogin()" title="修改配置">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button class="btn" onclick="loadData()"><i class="fas fa-redo"></i> 刷新</button>
+                <div class="user-avatar" id="userMenu">
+                    <div class="av" id="userAv">U</div>
+                    <span id="userName">用户</span>
+                    <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#a0aec0;"></i>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="drop-item disabled">
+                            <i class="fas fa-play-circle"></i> 运行程序
+                            <span class="val" id="dropRunning">0</span>
+                        </div>
+                        <div class="drop-item disabled">
+                            <i class="fas fa-microchip"></i> 可用 CPU
+                            <span class="val" id="dropCpu">0 核</span>
+                        </div>
+                        <div class="drop-item disabled">
+                            <i class="fas fa-memory"></i> 可用内存
+                            <span class="val" id="dropMem">0 GB</span>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="drop-item logout" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i> 退出登录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="refresh-timer"><div class="rt-fill" id="refreshBar"></div></div>
+
+        <div class="summary-row" id="summaryRow">
+            <div class="sum-card"><div class="sc-top"><span class="sc-label">CPU 总量</span><i class="fas fa-microchip" style="color:#3182ce;opacity:0.4;"></i></div><div class="sc-value" id="sCpuTot">—</div><div class="sc-sub" id="sCpuSub">等待连接...</div><div class="sc-bar"><div class="fill" id="sCpuBar" style="width:0%;background:#48bb78;"></div></div></div>
+            <div class="sum-card"><div class="sc-top"><span class="sc-label">内存总量</span><i class="fas fa-memory" style="color:#2b6cb0;opacity:0.4;"></i></div><div class="sc-value" id="sMemTot">—</div><div class="sc-sub" id="sMemSub">等待连接...</div><div class="sc-bar"><div class="fill" id="sMemBar" style="width:0%;background:#48bb78;"></div></div></div>
+            <div class="sum-card"><div class="sc-top"><span class="sc-label">节点分布</span><i class="fas fa-server" style="color:#ecc94b;opacity:0.4;"></i></div><div class="sc-value" id="sNodes">—</div><div class="sc-sub" id="sNodesSub">等待连接...</div></div>
+            <div class="sum-card"><div class="sc-top"><span class="sc-label">我的任务</span><i class="fas fa-tasks" style="color:#48bb78;opacity:0.4;"></i></div><div class="sc-value" id="sJobs">—</div><div class="sc-sub" id="sJobsSub">等待连接...</div></div>
+        </div>
+
+        <h3 class="section-title"><i class="fas fa-hdd"></i> 存储使用 <span class="badge badge-blue" id="diskCount"></span></h3>
+        <div class="disk-grid" id="diskGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title"><i class="fas fa-tag"></i> 分区 <span class="badge badge-blue" id="partCount"></span></h3>
+        <div class="part-grid" id="partGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title"><i class="fas fa-microchip"></i> 节点 <span class="badge badge-blue" id="nodeCount"></span></h3>
+        <div class="node-grid" id="nodeGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-server"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title"><i class="fas fa-tasks"></i> 我的任务 <span class="badge badge-green" id="jobCount"></span></h3>
+        <div class="job-wrap" id="jobWrap"><div class="empty-state"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+    </div>
+    </div>
+
+<script>
+const API = window.location.origin;
+let autoRefresh = null;
+
+function toast(m) {
+    const e = document.getElementById('toast');
+    e.textContent = m; e.style.display = 'block';
+    setTimeout(() => e.style.display = 'none', 2800);
+}
+
+async function api(url, opts = {}) {
+    try { const r = await fetch(url, opts); return await r.json(); }
+    catch (e) { return { error: e.message }; }
+}
+
+/* ── 解析带有单位的内存字符串为纯数字（单位统一换算为MB） ── */
+function parseToMb(str) {
+    if (!str) return 0;
+    const num = parseFloat(str);
+    if (isNaN(num)) return 0;
+    const unit = str.replace(/[0-9.]/g, '').trim().toUpperCase();
+    if (unit.startsWith('T')) return num * 1024 * 1024;
+    if (unit.startsWith('G')) return num * 1024;
+    if (unit.startsWith('M')) return num;
+    if (unit.startsWith('K')) return num / 1024;
+    return num; // 默认视为 MB
+}
+
+/* ── User Dropdown ── */
+document.addEventListener('click', function(e) {
+    const dd = document.getElementById('userDropdown');
+    const menu = document.getElementById('userMenu');
+    if (dd && menu && !menu.contains(e.target)) {
+        dd.classList.remove('show');
+    }
+});
+document.getElementById('userMenu')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    document.getElementById('userDropdown').classList.toggle('show');
+    // 下拉展开时刷新用户数据
+    const name = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+    if (name) refreshUserData();
+});
+
+/* ── 登录/登出 ── */
+function applyUser(name) {
+    const av = document.getElementById('userAv');
+    const nm = document.getElementById('userName');
+    if (av) av.textContent = name.charAt(0).toUpperCase();
+    if (nm) nm.textContent = name;
+}
+
+function logout() {
+    if (confirm('确认退出登录？')) {
+        sessionStorage.removeItem('user_name');
+        localStorage.removeItem('user_name');
+        location.reload();
+    }
+}
+
+async function testConn() {
+    const btn = document.getElementById('btnTestConn');
+    const res = document.getElementById('connTestResult');
+    btn.disabled = true; btn.innerHTML = '⏳ 测试中...';
+    res.innerHTML = '<span style="color:#718096;">⏳ 正在连接...</span>';
+    const payload = {
+        host: document.getElementById('cfgHost').value.trim(),
+        port: parseInt(document.getElementById('cfgPort').value) || 22,
+        username: document.getElementById('cfgUser').value.trim(),
+        password: document.getElementById('cfgPass').value,
+    };
+    if (!payload.host || !payload.username || !payload.password) {
+        res.innerHTML = '<span style="color:#fc8181;">❌ 请填写完整集群信息</span>';
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> 测试连接';
+        return;
+    }
+    await api('/api/slurm/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const r = await api('/api/slurm/test', { method:'POST' });
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> 测试连接';
+    if (r.ok) {
+        res.innerHTML = '<span style="color:#48bb78;">✅ 连接成功 · ' + r.hostname + '</span>';
+    } else {
+        res.innerHTML = '<span style="color:#fc8181;">❌ ' + (r.error||'连接失败') + '</span>';
+    }
+}
+
+async function doLogin() {
+    const input = document.getElementById('loginInput');
+    const name = input.value.trim();
+    if (!name) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = '请输入用户名';
+        return;
+    }
+    document.getElementById('loginError').style.display = 'none';
+
+    // 保存集群配置
+    const payload = {
+        host: document.getElementById('cfgHost').value.trim(),
+        port: parseInt(document.getElementById('cfgPort').value) || 22,
+        username: document.getElementById('cfgUser').value.trim(),
+        password: document.getElementById('cfgPass').value,
+    };
+    if (payload.host && payload.username && payload.password) {
+        await api('/api/slurm/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    }
+
+    // 保存登录态
+    sessionStorage.setItem('user_name', name);
+    localStorage.setItem('user_name', name);
+    applyUser(name);
+
+    // 隐藏登录层，显示应用内容
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('appContent').classList.remove('login-hidden');
+    toast('👋 欢迎，' + name);
+    loadData();
+    startAutoRefresh();
+    setTimeout(() => refreshUserData(), 1500);
+}
+
+/* 重新打开登录层（用于设置配置） */
+function openLogin() {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    document.getElementById('appContent').classList.add('login-hidden');
+    document.getElementById('connTestResult').innerHTML = '';
+    const name = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+    if (name) document.getElementById('loginInput').value = name;
+    // 回填现有配置
+    api('/api/slurm/config').then(r => {
+        if (r.configured) {
+            document.getElementById('cfgHost').value = r.config.host || '';
+            document.getElementById('cfgPort').value = r.config.port || 22;
+            document.getElementById('cfgUser').value = r.config.username || '';
+        }
+        document.getElementById('cfgPass').value = '';
+    });
+}
+
+/* ── 刷新用户数据（下拉菜单中的 CPU/内存/运行数） ── */
+async function refreshUserData() {
+    try {
+        const [squeueRes, nodesRes, assocRes] = await Promise.all([
+            api('/api/slurm/squeue'),
+            api('/api/slurm/nodes'),
+            api('/api/slurm/assoc'),
+        ]);
+
+        // 运行程序数计算逻辑修正
+        if (squeueRes.jobs && Array.isArray(squeueRes.jobs)) {
+            const running = squeueRes.jobs.filter(j => {
+                const st = (j.state || '').toUpperCase();
+                return st === 'R' || st === 'RUNNING';
+            }).length;
+            const pending = squeueRes.jobs.filter(j => {
+                const st = (j.state || '').toUpperCase();
+                return st === 'PD' || st === 'PENDING';
+            }).length;
+            document.getElementById('dropRunning').textContent = running + ' / ' + (running + pending);
+        }
+
+        // 从 assoc 获取用户配额
+        if (assocRes && assocRes.associations) {
+            // 从集群配置中获取 SSH 用户名
+            const cfgRes = await api('/api/slurm/config');
+            const sshUser = (cfgRes && cfgRes.config && cfgRes.config.username) ? cfgRes.config.username.trim() : '';
+            const userAssoc = sshUser ? assocRes.associations.find(a =>
+                a.user && a.user.toLowerCase() === sshUser.toLowerCase()
+            ) : null;
+
+            if (userAssoc) {
+                const cpu = userAssoc.grp_cpus || 0;
+                document.getElementById('dropCpu').textContent = cpu > 0 ? cpu + ' 核' : '无限制';
+                const memMb = userAssoc.grp_mem || 0;
+                document.getElementById('dropMem').textContent = memMb > 0 ? (memMb / 1024).toFixed(0) + ' GB' : '无限制';
+            }
+        }
+    } catch(e) {
+        // 静默处理
+    }
+}
+
+function setConn(ok, msg) {
+    const dot = document.getElementById('connDot');
+    const label = document.getElementById('connLabel');
+    dot.className = 'dot ' + (ok===null?'yellow':ok?'green':'red');
+    label.textContent = msg||(ok?'在线':'离线');
+}
+
+/* ── 核心加载 ── */
+async function loadData() {
+    document.getElementById('refreshBar').style.transition='none';
+    document.getElementById('refreshBar').style.width='0%';
+    setTimeout(()=>{
+        document.getElementById('refreshBar').style.transition='width 30s linear';
+        document.getElementById('refreshBar').style.width='100%';
+    },50);
+    setConn(null,'加载中...');
+
+    try {
+        const h = await fetch('/api/health', { method:'HEAD', cache:'no-store' });
+        if (!h.ok) throw new Error('后端异常');
+    } catch(e) {
+        setConn(false,'后端未启动');
+        return;
+    }
+
+    const [cfg, sinfoRes, nodesRes, squeueRes, dfRes] = await Promise.all([
+        api('/api/slurm/config'),
+        api('/api/slurm/sinfo'),
+        api('/api/slurm/nodes'),
+        api('/api/slurm/squeue'),
+        api('/api/slurm/df'),
+    ]);
+    // 存储类 API 单独请求并失败重试（SSH 命令偶尔超时）
+    let freeRes = await api('/api/slurm/free');
+    if (freeRes.error && !freeRes.total) { await new Promise(r => setTimeout(r, 2000)); freeRes = await api('/api/slurm/free'); }
+    let userdfRes = await api('/api/slurm/userdf');
+    if (userdfRes.error && !userdfRes.usage) { await new Promise(r => setTimeout(r, 2000)); userdfRes = await api('/api/slurm/userdf'); }
+    
+    if (cfg.error) { setConn(false,'后端异常'); return; }
+    if (!cfg.configured) { setConn(false,'未配置'); return; }
+    if (sinfoRes.error||nodesRes.error) { setConn(false,'连接失败'); return; }
+    setConn(true, '在线 · ' + cfg.config.host);
+    
+    // 【重要修改】优先渲染任务数据，更新必要的 DOM dataset，防止摘要卡片读取到旧的任务计数
+    renderJobs(squeueRes.jobs, squeueRes.pending, squeueRes.running);
+    renderSummary(nodesRes.summary);
+    renderDisks(dfRes.mounts||[], freeRes, userdfRes);
+    renderPartitions(sinfoRes.partitions);
+    renderNodes(nodesRes.nodes, nodesRes.summary);
+}
+
+/* 摘要 */
+function renderSummary(s) {
+    if (!s) return;
+    const cpuPct = s.totalCpu>0 ? Math.round(s.allocCpu/s.totalCpu*100) : 0;
+    const memPct = s.totalMem>0 ? Math.round(s.allocMem/s.totalMem*100) : 0;
+    document.getElementById('sCpuTot').textContent = s.totalCpu + ' 核';
+    document.getElementById('sCpuSub').textContent = (s.totalCpu-s.allocCpu) + ' 空闲 · ' + s.allocCpu + ' 已分配';
+    document.getElementById('sCpuBar').style.width=cpuPct+'%';
+    document.getElementById('sCpuBar').style.background=cpuPct>80?'#fc8181':cpuPct>50?'#ecc94b':'#48bb78';
+    document.getElementById('sMemTot').textContent = (s.totalMem/1024).toFixed(0)+' GB';
+    document.getElementById('sMemSub').textContent = ((s.totalMem-s.allocMem)/1024).toFixed(0)+'G 空闲 · '+(s.allocMem/1024).toFixed(0)+'G 已分配';
+    document.getElementById('sMemBar').style.width=memPct+'%';
+    document.getElementById('sMemBar').style.background=memPct>80?'#fc8181':memPct>50?'#ecc94b':'#48bb78';
+    const t = (s.idleCount||0)+(s.mixedCount||0)+(s.allocCount||0)+(s.downCount||0)+(s.otherCount||0);
+    document.getElementById('sNodes').textContent = t + ' 节点';
+    document.getElementById('sNodesSub').textContent = (s.idleCount>0?'🟢 '+s.idleCount+' 空闲 ':'')+(s.mixedCount>0?'🟡 '+s.mixedCount+' 混合 ':'')+(s.downCount>0?'🔴 '+s.downCount+' 离线 ':'');
+    
+    const jc = document.getElementById('sJobs');
+    if (jc && jc.dataset.running) {
+        document.getElementById('sJobsSub').textContent = jc.dataset.running+' 运行 · '+(jc.dataset.pending||0)+' 等待';
+    }
+}
+
+/* 磁盘与账户内存转换 */
+function renderDisks(mounts, freeRes, userdfRes) {
+    const grid = document.getElementById('diskGrid');
+    const count = document.getElementById('diskCount');
+    
+    // 【重要修改】解析 freeRes 中的异形单位字符串，防止出现由于单位不同相除得到 NaN 导致不显示的问题
+    let memCard = '';
+    if (freeRes && freeRes.total && freeRes.used) {
+        const totalMb = parseToMb(freeRes.total);
+        const usedMb = parseToMb(freeRes.used);
+        const pct = totalMb > 0 ? Math.round((usedMb / totalMb) * 100) : 0;
+        memCard = `<div class="disk-card" style="border-left:3px solid #2b6cb0;">
+            <div class="dc-header"><span class="dc-mount">📝 当前节点内存</span><span class="dc-fs">free -h</span></div>
+            <div class="dc-stats"><span>总量<span class="val">${freeRes.total}</span></span><span>已用<span class="val">${freeRes.used}</span></span><span>可用<span class="val">${freeRes.available || '—'}</span></span></div>
+            <div class="dc-bar"><div class="fill" style="width:${Math.min(pct, 100)}%;background:#2b6cb0;"></div></div>
+        </div>`;
+    }
+
+    const userCard = userdfRes&&userdfRes.usage ? `<div class="disk-card" style="border-left:3px solid #3182ce;">
+        <div class="dc-header"><span class="dc-mount">👤 用户家目录</span><span class="dc-fs">${userdfRes.userDir||'~'}</span></div>
+        <div class="dc-stats"><span>已用空间 <span class="val" style="font-size:1.2rem;font-weight:700;">${userdfRes.usage}</span></span></div>
+    </div>` : '';
+    const diskCards = (mounts||[]).map(d => {
+        const pct = parseInt(d.usePct)||0;
+        const c = pct>80?'#fc8181':pct>60?'#ecc94b':'#48bb78';
+        return `<div class="disk-card"><div class="dc-header"><span class="dc-mount">${d.mounted}</span><span class="dc-fs">${d.filesystem}</span></div>
+            <div class="dc-stats"><span>总容量<span class="val">${d.size}</span></span><span>已用<span class="val">${d.used}</span></span><span>可用<span class="val">${d.avail}</span></span><span><span class="val" style="color:${c};">${d.usePct}</span></span></div>
+            <div class="dc-bar"><div class="fill" style="width:${pct}%;background:${c};"></div></div></div>`;
+    }).join('');
+    const allCards = [memCard, userCard, diskCards].filter(Boolean).join('');
+    count.textContent = (mounts||[]).length + ' 个分区';
+    grid.innerHTML = allCards || '<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>暂无信息</div>';
+}
+
+/* 分区 */
+function renderPartitions(partitions) {
+    if (!partitions||!partitions.length) {
+        document.getElementById('partGrid').innerHTML='<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>暂无分区</div>';
+        document.getElementById('partCount').textContent=''; return;
+    }
+    document.getElementById('partCount').textContent = partitions.length+' 个';
+    document.getElementById('partGrid').innerHTML = partitions.map(p => {
+        const pct = p.totalNodes>0 ? Math.round(p.totalAlloc/p.totalNodes*100) : 0;
+        const c = pct>80?'#fc8181':pct>50?'#ecc94b':'#48bb78';
+        return `<div class="part-box"><div class="pb-name">${p.name}</div><div class="pb-stat">${p.totalAlloc}/${p.totalNodes} · ${p.totalNodes-p.totalAlloc} 空闲</div><div class="pb-bar"><div class="pb-fill" style="width:${Math.min(pct,100)}%;background:${c}"></div></div></div>`;
+    }).join('');
+}
+
+/* 节点 */
+function renderNodes(nodes, summary) {
+    if (!nodes||!nodes.length) {
+        document.getElementById('nodeGrid').innerHTML='<div class="empty-state"><i class="fas fa-server"></i><br>暂无节点</div>';
+        document.getElementById('nodeCount').textContent=''; return;
+    }
+    document.getElementById('nodeCount').textContent = nodes.length+' 个';
+    const sC = (s)=>{const st=(s||'').toUpperCase();return st==='IDLE'?'tag-idle':st.startsWith('MIX')?'tag-mix':st.startsWith('ALLOC')?'tag-alloc':st==='DOWN'?'tag-down':'tag-off';};
+    const sL = (s)=>{const st=(s||'').toUpperCase();return st==='IDLE'?'空闲':st.startsWith('MIX')?'混合':st.startsWith('ALLOC')?'满载':st==='DOWN'?'离线':st;};
+    const cC = (s)=>{const st=(s||'').toUpperCase();return st==='IDLE'?'nc-idle':st.startsWith('MIX')?'nc-mix':st.startsWith('ALLOC')?'nc-alloc':'';};
+    document.getElementById('nodeGrid').innerHTML = nodes.map(n => {
+        const cpuPct = n.cpuTot>0?Math.round(n.cpuAlloc/n.cpuTot*100):0;
+        const memPct = n.realMemory>0?Math.round(n.allocMem/n.realMemory*100):0;
+        const cpuC = cpuPct>80?'#fc8181':cpuPct>50?'#ecc94b':'#48bb78';
+        const memC = memPct>80?'#fc8181':memPct>50?'#ecc94b':'#48bb78';
+        const gpuTag = n.gres&&n.gres!=='none'?`<span class="tag tag-idle" style="float:right;">${n.gres}</span>`:'';
+        return `<div class="node-card ${cC(n.state)}"><div class="nc-header"><span class="nc-name">${n.name}${gpuTag}</span><span class="nc-state ${sC(n.state)}">${sL(n.state)}</span></div>
+            <div class="nc-stat"><div class="row"><span>CPU</span><span class="v">${n.cpuAlloc} / ${n.cpuTot}</span></div><div class="row"><span>负载</span><span class="v">${n.cpuLoad.toFixed(1)}</span></div><div class="row"><span>内存</span><span class="v">${(n.allocMem/1024).toFixed(0)}/${(n.realMemory/1024).toFixed(0)}G</span></div><div class="row"><span>可用</span><span class="v">${(n.freeMem/1024).toFixed(0)}G</span></div></div>
+            <div class="nc-bar"><div class="bar-label"><span>CPU</span><span>${cpuPct}%</span></div><div class="track"><div class="fill" style="width:${cpuPct}%;background:${cpuC}"></div></div></div>
+            <div class="nc-bar"><div class="bar-label"><span>内存</span><span>${memPct}%</span></div><div class="track"><div class="fill" style="width:${memPct}%;background:${memC}"></div></div></div>
+            <div class="nc-partitions">📌 ${(n.partitions||'-').replace(/,/g,', ')}</div></div>`;
+    }).join('');
+}
+
+/* 任务 */
+function renderJobs(jobs, pending, running) {
+    const wrap = document.getElementById('jobWrap');
+    const count = document.getElementById('jobCount');
+    const sJobs = document.getElementById('sJobs');
+    
+    if (!jobs||jobs.length===0) {
+        if(count) count.textContent=''; 
+        if(sJobs) { sJobs.textContent='0'; sJobs.dataset.running='0'; sJobs.dataset.pending='0'; }
+        const sub = document.getElementById('sJobsSub');
+        if(sub) sub.textContent='暂无运行中的任务';
+        wrap.innerHTML='<div class="empty-state"><i class="fas fa-check-circle" style="color:#48bb78;"></i><br>当前没有运行中的任务</div>'; return;
+    }
+    
+    // 【重要修改】优先保证赋值完整性，供其他模块提取
+    sJobs.textContent = jobs.length; 
+    sJobs.dataset.running = running || 0; 
+    sJobs.dataset.pending = pending || 0;
+    
+    count.textContent = (running||0) + ' 运行 · ' + (pending||0) + ' 等待';
+    const subNode = document.getElementById('sJobsSub');
+    if(subNode) subNode.textContent = (running||0)+' 运行 · '+(pending||0)+' 等待';
+    
+    const sc=(s)=>{const st=String(s).trim();if(st==='R')return 'job-st-R';if(st==='PD')return 'job-st-PD';if(st==='CG')return 'job-st-CG';if(st==='F')return 'job-st-F';return 'job-st-';};
+    const sl=(s)=>{const st=String(s).trim();if(st==='R')return '运行中';if(st==='PD')return '排队中';if(st==='CG')return '完成中';if(st==='F')return '失败';if(st==='CD')return '完成';return st;};
+    wrap.innerHTML = `<table class="job-table"><thead><tr><th>JOBID</th><th>分区</th><th>名称</th><th>状态</th><th>运行时间</th><th>节点</th></tr></thead><tbody>${
+        jobs.map(j=>`<tr><td style="font-family:monospace;">${j.jobid}</td><td>${j.partition||'-'}</td><td>${j.name||'-'}</td><td class="${sc(j.state)}">${sl(j.state)}</td><td>${j.time||'-'}</td><td>${j.nodes||'-'}</td></tr>`).join('')
+    }</tbody></table>`;
+}
+
+/* 自动刷新 */
+function startAutoRefresh() { if(autoRefresh)clearInterval(autoRefresh); autoRefresh=setInterval(loadData,30000); }
+
+/* ── 启动 ── */
+(function init() {
+    // 优先 sessionStorage（同标签页），其次 localStorage（跨标签页）
+    const savedUser = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+
+    // 如果有登录态，直接进入
+    if (savedUser) {
+        sessionStorage.setItem('user_name', savedUser);
+        applyUser(savedUser);
+        document.getElementById('loginOverlay').classList.add('hidden');
+        document.getElementById('appContent').classList.remove('login-hidden');
+    }
+
+    // 检查后端 / 自动连接
+    fetch('/api/health', { method:'HEAD', cache:'no-store' }).then(r => {
+        if (!r.ok) throw new Error('后端未响应');
+        api('/api/slurm/config').then(r => {
+            if (r.configured) {
+                loadData();
+                // 回填登录层的配置字段
+                if (r.config.host) document.getElementById('cfgHost').value = r.config.host;
+                if (r.config.port) document.getElementById('cfgPort').value = r.config.port;
+                if (r.config.username) document.getElementById('cfgUser').value = r.config.username;
+            } else if (savedUser) {
+                setConn(false,'未配置');
+            }
+        });
+        startAutoRefresh();
+        if (savedUser) {
+            setTimeout(() => refreshUserData(), 2000);
+        }
+    }).catch(() => {
+        if (!savedUser) return; // 未登录时不显示后端错误页面
+        document.getElementById('connDot').className = 'dot red';
+        document.getElementById('connLabel').textContent = '后端未启动';
+        document.getElementById('summaryRow').innerHTML =
+            '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;">' +
+            '<i class="fas fa-plug" style="font-size:2.5rem;color:#fc8181;margin-bottom:14px;display:block;"></i>' +
+            '<div style="font-size:1.1rem;color:#e53e3e;font-weight:600;margin-bottom:8px;">❌ 后端服务未运行</div>' +
+            '<div style="font-size:0.88rem;color:#718096;margin-bottom:14px;">请双击桌面 BioAgent.vbs 启动后端服务</div>' +
+            '<div style="background:#edf2f7;padding:10px 16px;border-radius:8px;margin:0 auto 14px;max-width:400px;font-family:monospace;font-size:0.82rem;color:#4a5568;border:1px solid #e2e8f0;">' +
+            'K:\\slurm-monitor\\BioAgent.vbs</div>' +
+            '<button class="btn" onclick="location.reload()" style="margin-top:4px;"><i class="fas fa-redo"></i> 重试连接</button>' +
+            '</div>';
+        document.getElementById('diskGrid').innerHTML = '';
+        document.getElementById('partGrid').innerHTML = '';
+        document.getElementById('nodeGrid').innerHTML = '';
+        document.getElementById('jobWrap').innerHTML = '';
+    });
+
+    // URL 参数传用户名
+    const params = new URLSearchParams(window.location.search);
+    const bioUser = params.get('user');
+    if (bioUser) {
+        sessionStorage.setItem('user_name', bioUser.trim());
+        localStorage.setItem('user_name', bioUser.trim());
+        document.getElementById('loginInput').value = bioUser.trim();
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+})();
+</script>
+</body>
+</html>
