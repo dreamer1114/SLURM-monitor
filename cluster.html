@@ -335,7 +335,7 @@
             <div class="login-header">
                 <img src="logo.png" class="login-logo" alt="Logo">
                 <h1>HPC 集群监控</h1>
-                <div class="login-sub">环境生物电化学中心 · Slurm 算力集群</div>
+                <div class="login-sub" id="loginSub">Slurm 算力集群</div>
             </div>
 
             <div class="login-section-label"><i class="fas fa-user"></i> 用户名</div>
@@ -346,6 +346,16 @@
             </div>
 
             <div class="login-sep"></div>
+
+            <div id="serverNameSection">
+            <div class="login-section-label"><i class="fas fa-tag"></i> 服务器命名</div>
+            <div class="form-group">
+                <input id="cfgServerName" type="text" placeholder="留空则默认：高性能计算集群"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+
+            <div class="login-sep"></div>
+            </div>
 
             <div class="login-section-label"><i class="fas fa-server"></i> Slurm 集群连接</div>
             <div class="form-group">
@@ -392,8 +402,8 @@
                 <span class="brand">
                     <img src="logo.png" style="height:32px;width:auto;border-radius:6px;" alt="Logo">
                     <span>
-                        环境生物电化学中心算力集群
-                        <span class="title-sub">HPC Cluster Monitor</span>
+                        <span id="brandName">高性能计算集群</span>
+                        <span class="title-sub" id="brandSub">HPC Cluster Monitor</span>
                     </span>
                 </span>
             </div>
@@ -458,6 +468,22 @@
 <script>
 const API = window.location.origin;
 let autoRefresh = null;
+
+/* ── 获取服务器命名 ── */
+function getServerName() {
+    return sessionStorage.getItem('server_name') || localStorage.getItem('server_name') || '高性能计算集群';
+}
+
+/* ── 应用服务器命名 ── */
+function applyServerName(name) {
+    const el = document.getElementById('brandName');
+    if (el) el.textContent = name;
+    const brandSub = document.getElementById('brandSub');
+    if (brandSub) brandSub.textContent = 'HPC Cluster Monitor';
+    const sub = document.getElementById('loginSub');
+    if (sub) sub.textContent = name + ' · Slurm 算力集群';
+    document.title = name + ' · HPC 集群监控';
+}
 
 function toast(m) {
     const e = document.getElementById('toast');
@@ -562,6 +588,12 @@ async function doLogin() {
         await api('/api/slurm/config', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
     }
 
+    // 保存服务器命名
+    const serverName = document.getElementById('cfgServerName').value.trim() || '高性能计算集群';
+    sessionStorage.setItem('server_name', serverName);
+    localStorage.setItem('server_name', serverName);
+    applyServerName(serverName);
+
     // 保存登录态
     sessionStorage.setItem('user_name', name);
     localStorage.setItem('user_name', name);
@@ -583,6 +615,13 @@ function openLogin() {
     document.getElementById('connTestResult').innerHTML = '';
     const name = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
     if (name) document.getElementById('loginInput').value = name;
+    // 服务器命名：首次设置后锁定，后续不再显示输入框
+    const serverNameSection = document.getElementById('serverNameSection');
+    if (localStorage.getItem('server_name')) {
+        serverNameSection.style.display = 'none';
+    } else {
+        serverNameSection.style.display = '';
+    }
     // 回填现有配置
     api('/api/slurm/config').then(r => {
         if (r.configured) {
@@ -825,6 +864,7 @@ function startAutoRefresh() { if(autoRefresh)clearInterval(autoRefresh); autoRef
     if (savedUser) {
         sessionStorage.setItem('user_name', savedUser);
         applyUser(savedUser);
+        applyServerName(getServerName());
         document.getElementById('loginOverlay').classList.add('hidden');
         document.getElementById('appContent').classList.remove('login-hidden');
     }
@@ -873,6 +913,7 @@ function startAutoRefresh() { if(autoRefresh)clearInterval(autoRefresh); autoRef
         sessionStorage.setItem('user_name', bioUser.trim());
         localStorage.setItem('user_name', bioUser.trim());
         document.getElementById('loginInput').value = bioUser.trim();
+        applyServerName(getServerName());
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
     }
