@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPC 集群监控 · 环境生物电化学中心</title>
+    <link rel="icon" href="logo.png">
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <style>
+        :root {
+            --bg: #eef2f9;
+            --card: rgba(255,255,255,.86);
+            --card-border: rgba(148,163,184,.22);
+            --text: #0f172a;
+            --muted: #64748b;
+            --faint: #94a3b8;
+            --indigo: #6366f1;
+            --violet: #8b5cf6;
+            --cyan: #06b6d4;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --rose: #f43f5e;
+            --grad-brand: linear-gradient(135deg,#6366f1,#8b5cf6 55%,#06b6d4);
+            --shadow-card: 0 4px 18px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
+            --shadow-hover: 0 14px 34px rgba(99,102,241,.16), 0 4px 10px rgba(15,23,42,.05);
+            --radius: 18px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 18px; scrollbar-color: #c7d2fe transparent; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+            background: linear-gradient(160deg,#eef2f9 0%,#f7f9fe 45%,#eef4fb 100%);
+            color: var(--text);
+            min-height: 100vh;
+            font-size: 17px;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 8px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a5b4fc; }
+
+        /* ── 背景：漂浮光斑 + 网格 ── */
+        .bg-blobs { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+        .bg-blobs span { position: absolute; border-radius: 50%; filter: blur(70px); }
+        .bg-blobs .b1 { width: 52vmin; height: 52vmin; left: -8vmin; top: -10vmin; background: #c7d2fe; opacity: .55; animation: drift 26s ease-in-out infinite alternate; }
+        .bg-blobs .b2 { width: 44vmin; height: 44vmin; right: -6vmin; top: 8vmin; background: #fbcfe8; opacity: .5; animation: drift 32s ease-in-out infinite alternate-reverse; }
+        .bg-blobs .b3 { width: 46vmin; height: 46vmin; left: 22vmin; bottom: -16vmin; background: #bae6fd; opacity: .5; animation: drift 38s ease-in-out infinite alternate; }
+        .bg-blobs .b4 { width: 36vmin; height: 36vmin; right: 24vmin; bottom: -10vmin; background: #d1fae5; opacity: .5; animation: drift 30s ease-in-out infinite alternate-reverse; }
+        @keyframes drift {
+            0%   { transform: translate(0,0) scale(1); }
+            50%  { transform: translate(6vmin,-4vmin) scale(1.08); }
+            100% { transform: translate(-5vmin,5vmin) scale(.94); }
+        }
+        .bg-grid {
+            position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background-image:
+                linear-gradient(rgba(100,116,139,.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100,116,139,.055) 1px, transparent 1px);
+            background-size: 34px 34px;
+            -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 40%, transparent 100%);
+            mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 40%, transparent 100%);
+        }
+
+        .app { max-width: 1500px; margin: 0 auto; padding: 14px 18px 44px; position: relative; }
+
+        /* ── 顶部导航 ── */
+        .topbar {
+            position: sticky; top: 10px; z-index: 60;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 16px 10px 18px;
+            background: rgba(255,255,255,.78);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border: 1px solid rgba(255,255,255,.95);
+            border-radius: 20px;
+            margin-bottom: 14px;
+            flex-wrap: wrap; gap: 8px;
+            box-shadow: 0 8px 24px rgba(99,102,241,.10), 0 2px 6px rgba(15,23,42,.05);
+        }
+        .topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .brand-logo { height: 34px; width: auto; border-radius: 9px; box-shadow: 0 2px 8px rgba(99,102,241,.25); }
+        .brand-text { min-width: 0; }
+        .brand-name {
+            font-weight: 800; font-size: 1.02rem; letter-spacing: .2px;
+            background: var(--grad-brand);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: block; line-height: 1.2;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .title-sub { font-weight: 500; font-size: .68rem; color: var(--faint); letter-spacing: .8px; text-transform: uppercase; }
+        .topbar-right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+        .clock {
+            font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--muted);
+            background: rgba(255,255,255,.7); border: 1px solid rgba(148,163,184,.2);
+            padding: 5px 12px; border-radius: 30px; letter-spacing: .5px;
+        }
+
+        /* 连接状态 */
+        .conn-status {
+            display: flex; align-items: center; gap: 7px;
+            padding: 5px 14px 5px 11px; border-radius: 30px;
+            font-size: .78rem; font-weight: 600; cursor: pointer;
+            background: rgba(255,255,255,.7); border: 1px solid rgba(148,163,184,.22);
+            transition: all .2s;
+        }
+        .conn-status:hover { border-color: #a5b4fc; transform: translateY(-1px); }
+        .dot { width: 9px; height: 9px; border-radius: 50%; position: relative; flex-shrink: 0; }
+        .dot.gray { background: #94a3b8; }
+        .dot.green { background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,.55); }
+        .dot.red { background: var(--rose); box-shadow: 0 0 8px rgba(244,63,94,.5); }
+        .dot.yellow { background: var(--amber); box-shadow: 0 0 8px rgba(245,158,11,.5); }
+
+        /* 按钮 */
+        .btn {
+            border: none; cursor: pointer; transition: all .2s;
+            display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+            font-family: inherit; font-weight: 700; font-size: .82rem;
+            padding: 8px 18px; border-radius: 30px; color: #fff;
+            background: var(--grad-brand);
+            box-shadow: 0 4px 14px rgba(99,102,241,.32);
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99,102,241,.4); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
+        .btn-ghost {
+            background: rgba(255,255,255,.75); border: 1px solid rgba(148,163,184,.25);
+            color: var(--muted); box-shadow: none;
+        }
+        .btn-ghost:hover { color: var(--indigo); border-color: #a5b4fc; background: #fff; box-shadow: 0 4px 12px rgba(99,102,241,.12); }
+        .btn-success { background: linear-gradient(135deg,#34d399,#10b981); box-shadow: 0 4px 14px rgba(16,185,129,.3); }
+        .btn-success:hover { box-shadow: 0 8px 20px rgba(16,185,129,.4); }
+
+        /* 用户头像 + 下拉 */
+        .user-avatar {
+            display: flex; align-items: center; gap: 7px;
+            padding: 4px 12px 4px 5px; border-radius: 30px;
+            background: rgba(255,255,255,.75); border: 1px solid rgba(148,163,184,.25);
+            font-size: .8rem; font-weight: 600; color: var(--muted); cursor: pointer;
+            transition: all .2s; position: relative;
+        }
+        .user-avatar:hover { border-color: #a5b4fc; }
+        .user-avatar .av {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--grad-brand);
+            display: flex; align-items: center; justify-content: center;
+            font-size: .75rem; font-weight: 800; color: #fff;
+            box-shadow: 0 2px 8px rgba(99,102,241,.35);
+        }
+        .user-dropdown {
+            display: none; position: absolute; top: calc(100% + 8px); right: 0;
+            background: rgba(255,255,255,.95);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(148,163,184,.25);
+            border-radius: 14px; box-shadow: 0 12px 32px rgba(15,23,42,.14);
+            padding: 6px; min-width: 210px; z-index: 100;
+            animation: fadeIn .16s ease-out;
+        }
+        .user-dropdown.show { display: block; }
+        .user-dropdown .drop-item {
+            display: flex; align-items: center; gap: 9px;
+            padding: 9px 12px; font-size: .78rem; color: var(--muted);
+            border-radius: 9px; cursor: default;
+        }
+        .user-dropdown .drop-item .val { margin-left: auto; color: var(--indigo); font-weight: 800; font-size: .82rem; }
+        .user-dropdown .drop-item i { width: 16px; text-align: center; color: var(--faint); }
+        .user-dropdown .drop-item.clickable { cursor: pointer; }
+        .user-dropdown .drop-item.clickable:hover { background: #eef2ff; }
+        .user-dropdown .drop-item.logout { color: var(--rose); cursor: pointer; }
+        .user-dropdown .drop-item.logout:hover { background: #fff1f2; }
+        .user-dropdown .drop-item.logout i { color: var(--rose); }
+        .user-dropdown .divider { height: 1px; background: #e2e8f0; margin: 5px 8px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+        /* ── 摘要卡片 ── */
+        .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-bottom: 18px; }
+        .sum-card {
+            position: relative; overflow: hidden;
+            background: var(--card);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius);
+            padding: 16px 18px 14px;
+            box-shadow: var(--shadow-card);
+            transition: all .25s cubic-bezier(.4,0,.2,1);
+        }
+        .sum-card::before {
+            content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity .25s;
+            background: radial-gradient(120% 90% at 0% 0%, rgba(99,102,241,.09), transparent 55%);
+        }
+        .sum-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: rgba(165,180,252,.55); }
+        .sum-card:hover::before { opacity: 1; }
+        .sc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .sc-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .sc-chip {
+            width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; color: #fff;
+            box-shadow: 0 4px 12px rgba(99,102,241,.3);
+        }
+        .chip-cpu { background: linear-gradient(135deg,#6366f1,#06b6d4); }
+        .chip-mem { background: linear-gradient(135deg,#8b5cf6,#ec4899); }
+        .chip-node { background: linear-gradient(135deg,#f59e0b,#f97316); }
+        .chip-job { background: linear-gradient(135deg,#10b981,#06b6d4); }
+        .sc-label { font-size: .72rem; color: var(--muted); font-weight: 600; letter-spacing: .3px; }
+        .sc-value { font-size: 1.55rem; font-weight: 800; line-height: 1.25; font-variant-numeric: tabular-nums; }
+        .sc-sub { font-size: .72rem; color: var(--muted); margin-top: 2px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-height: 18px; }
+
+        /* 圆环 */
+        .ring-wrap { position: relative; width: 62px; height: 62px; flex-shrink: 0; }
+        .ring { width: 62px; height: 62px; transform: rotate(-90deg); }
+        .ring .ring-bg { fill: none; stroke: rgba(100,116,139,.14); stroke-width: 7; }
+        .ring .ring-fg {
+            fill: none; stroke-width: 7; stroke-linecap: round;
+            stroke-dasharray: 163.36; stroke-dashoffset: 163.36;
+            transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1);
+        }
+        .ring-pct {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: .72rem; font-weight: 800; color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* 节点分布圆环 */
+        .donut-wrap { position: relative; width: 62px; height: 62px; flex-shrink: 0; }
+        .donut { width: 62px; height: 62px; transform: rotate(-90deg); }
+        .donut circle { fill: none; stroke-width: 7; transition: stroke-dasharray .8s ease; }
+        .donut-center {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            font-size: .95rem; font-weight: 800; line-height: 1.1; color: var(--text);
+        }
+        .donut-center small { font-size: .5rem; color: var(--faint); font-weight: 600; }
+
+        .sc-bar { height: 5px; border-radius: 6px; background: rgba(100,116,139,.13); margin-top: 10px; overflow: hidden; }
+        .sc-bar .fill { height: 100%; border-radius: 6px; background: var(--grad-brand); transition: width 1s cubic-bezier(.4,0,.2,1); position: relative; }
+
+        /* 状态小徽章 */
+        .chip {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 2px 10px; border-radius: 20px;
+            font-size: .68rem; font-weight: 700; line-height: 1.5; white-space: nowrap;
+        }
+        .chip .cdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .chip-green { background: #d1fae5; color: #047857; } .chip-green .cdot { background: #10b981; }
+        .chip-amber { background: #fef3c7; color: #b45309; } .chip-amber .cdot { background: #f59e0b; }
+        .chip-rose  { background: #ffe4e6; color: #be123c; } .chip-rose .cdot { background: #f43f5e; }
+        .chip-gray  { background: #f1f5f9; color: #475569; } .chip-gray .cdot { background: #94a3b8; }
+        .chip-blue  { background: #dbeafe; color: #1d4ed8; } .chip-blue .cdot { background: #3b82f6; }
+        .chip-cyan  { background: #cffafe; color: #0e7490; } .chip-cyan .cdot { background: #06b6d4; }
+        .chip-violet{ background: #ede9fe; color: #6d28d9; } .chip-violet .cdot { background: #8b5cf6; }
+
+        /* ── 区块标题 ── */
+        .section-title {
+            font-size: .92rem; font-weight: 800; color: var(--text);
+            display: flex; align-items: center; gap: 9px; margin: 0 0 12px 2px;
+        }
+        .sec-icon {
+            width: 30px; height: 30px; border-radius: 9px;
+            background: var(--grad-brand); color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .78rem; box-shadow: 0 3px 10px rgba(99,102,241,.3);
+        }
+        .section-title .badge {
+            font-size: .64rem; font-weight: 800; padding: 2px 11px; border-radius: 20px;
+            background: linear-gradient(135deg,#e0e7ff,#cffafe); color: #4338ca;
+            margin-left: 2px; letter-spacing: .3px;
+        }
+        .section-title .badge.green { background: linear-gradient(135deg,#d1fae5,#cffafe); color: #047857; }
+
+        /* ── 节点卡片 ── */
+        .node-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .node-card {
+            background: var(--card);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px; padding: 15px 16px;
+            box-shadow: var(--shadow-card);
+            transition: all .22s;
+            position: relative;
+            cursor: pointer;
+        }
+        .node-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+        .node-card.nc-idle { border-left: 4px solid var(--emerald); }
+        .node-card.nc-mix  { border-left: 4px solid var(--amber); }
+        .node-card.nc-alloc{ border-left: 4px solid var(--rose); }
+        .node-card.nc-down { border-left: 4px solid #94a3b8; opacity: .82; }
+        .nc-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+        .nc-name { font-weight: 800; font-size: .9rem; display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
+        .nc-name i { color: var(--indigo); font-size: .8rem; }
+        .gpu-tag {
+            font-size: .6rem; font-weight: 700; padding: 1px 8px; border-radius: 8px;
+            background: linear-gradient(135deg,#cffafe,#e0e7ff); color: #0e7490;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .nc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 9px; }
+        .nc-stat { display: flex; justify-content: space-between; align-items: baseline; font-size: .78rem; }
+        .nc-stat span { color: var(--faint); font-size: .7rem; }
+        .nc-stat b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+        .nc-bar { margin-bottom: 8px; }
+        .nc-bar .bar-label { display: flex; justify-content: space-between; font-size: .66rem; color: var(--faint); font-weight: 600; margin-bottom: 4px; }
+        .nc-bar .track { height: 7px; background: rgba(100,116,139,.12); border-radius: 7px; overflow: hidden; }
+        .nc-bar .track .fill { height: 100%; border-radius: 7px; transition: width 1s cubic-bezier(.4,0,.2,1); position: relative; }
+        .nc-parts { font-size: .72rem; color: var(--faint); display: flex; align-items: center; gap: 5px; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+        /* ── 分区 ── */
+        .part-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .part-box {
+            background: var(--card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); border-radius: 14px; padding: 14px;
+            box-shadow: var(--shadow-card); transition: all .22s; text-align: left;
+        }
+        .part-box:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+        .pb-name { font-size: .88rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
+        .pb-name i { color: var(--violet); font-size: .72rem; }
+        .pb-stat { font-size: .74rem; color: var(--muted); margin-top: 5px; }
+        .pb-bar { margin-top: 9px; height: 8px; border-radius: 8px; background: rgba(100,116,139,.12); overflow: hidden; }
+        .pb-bar .pb-fill { height: 100%; border-radius: 8px; transition: width 1s cubic-bezier(.4,0,.2,1); }
+        .pb-tip { font-size: .64rem; color: var(--faint); margin-top: 7px; }
+
+        /* ── 磁盘 ── */
+        .disk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .disk-card {
+            background: var(--card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); border-radius: 16px; padding: 15px 17px;
+            box-shadow: var(--shadow-card); transition: all .22s;
+        }
+        .disk-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+        .dc-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .dc-mount { font-size: .88rem; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dc-mount i { color: var(--indigo); font-size: .76rem; }
+        .dc-fs { font-size: .66rem; color: var(--faint); background: #f1f5f9; padding: 2px 8px; border-radius: 8px; flex-shrink: 0; }
+        .dc-stats { display: flex; justify-content: flex-start; gap: 14px; font-size: .76rem; margin-top: 4px; flex-wrap: wrap; }
+        .dc-stats span { color: var(--faint); display: inline-flex; align-items: center; gap: 4px; }
+        .dc-stats .val { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+        .dc-pct { margin-left: auto; font-size: .78rem; font-weight: 800; }
+        .dc-bar { height: 7px; border-radius: 7px; background: rgba(100,116,139,.12); margin-top: 9px; overflow: hidden; }
+        .dc-bar .fill { height: 100%; border-radius: 7px; transition: width 1s cubic-bezier(.4,0,.2,1); position: relative; }
+
+        /* ── 任务表 ── */
+        .job-wrap {
+            background: var(--card); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border); border-radius: 16px; overflow: hidden;
+            box-shadow: var(--shadow-card);
+        }
+        .job-table-wrap { overflow-x: auto; }
+        .job-table { width: 100%; border-collapse: collapse; font-size: .8rem; min-width: 760px; }
+        .job-table th {
+            text-align: left; padding: 11px 14px; color: var(--muted); font-weight: 700;
+            font-size: .68rem; letter-spacing: .5px; border-bottom: 1px solid #eef2f7;
+            background: rgba(238,242,255,.65); white-space: nowrap;
+        }
+        .job-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .job-table tbody tr { transition: background .15s; }
+        .job-table tbody tr:hover td { background: #f5f7ff; }
+        .job-table .mono { font-family: 'Cascadia Code', Consolas, monospace; font-size: .78rem; color: var(--indigo); font-weight: 700; }
+        .job-reason { max-width: 190px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: .74rem; }
+
+        /* 空状态 */
+        .empty-state { text-align: center; padding: 34px 20px; color: var(--faint); font-size: .84rem; }
+        .empty-state i { font-size: 1.7rem; opacity: .45; margin-bottom: 10px; display: block; }
+
+        /* ── 节点详情弹窗 ── */
+        .node-detail-overlay {
+            position: fixed; inset: 0; z-index: 999998;
+            background: rgba(15,23,42,.45);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .node-detail-overlay.hidden { display: none; }
+        .node-detail-box {
+            background: rgba(255,255,255,.97);
+            border-radius: 20px;
+            width: 580px; max-width: 94vw; max-height: 86vh; overflow-y: auto;
+            box-shadow: 0 24px 70px rgba(15,23,42,.35);
+            animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+            padding: 22px 24px 18px;
+        }
+        .nd-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 3px; }
+        .nd-title h3 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+        .nd-close { background: none; border: none; font-size: 1.05rem; color: var(--faint); cursor: pointer; padding: 4px 10px; border-radius: 8px; }
+        .nd-close:hover { background: #eef2ff; color: var(--text); }
+        .nd-sub { color: var(--faint); font-size: .72rem; margin-bottom: 2px; }
+        .nd-section { margin-top: 15px; }
+        .nd-label { font-size: .66rem; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+        .nd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; }
+        .nd-item { display: flex; justify-content: space-between; align-items: baseline; font-size: .8rem; }
+        .nd-item span { color: var(--faint); font-size: .72rem; }
+        .nd-item b { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+        .nd-item.wide { grid-column: 1 / -1; }
+        .nd-bar { margin-top: 6px; }
+        .nd-bar .bar-label { display: flex; justify-content: space-between; font-size: .68rem; color: var(--faint); font-weight: 600; margin-bottom: 3px; }
+        .nd-bar .track { height: 8px; background: rgba(100,116,139,.12); border-radius: 7px; overflow: hidden; }
+        .nd-bar .track .fill { height: 100%; border-radius: 7px; transition: width .8s cubic-bezier(.4,0,.2,1); }
+
+        /* ── 登录覆盖层 ── */
+        .login-overlay {
+            position: fixed; inset: 0; z-index: 999999;
+            background: linear-gradient(150deg, rgba(226,232,240,.82), rgba(243,244,251,.88));
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .login-overlay.hidden { display: none; }
+        .login-box {
+            position: relative;
+            background: rgba(255,255,255,.92);
+            backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255,255,255,.95);
+            border-radius: 26px;
+            padding: 34px 36px 28px; width: 540px; max-width: 94vw;
+            box-shadow: 0 24px 70px rgba(79,70,229,.22), 0 6px 20px rgba(15,23,42,.08);
+            animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+        }
+        .login-box::before {
+            content:''; position:absolute; inset:0; border-radius: 26px; padding: 1.5px;
+            background: linear-gradient(135deg, rgba(99,102,241,.55), rgba(6,182,212,.35), rgba(244,63,94,.25));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none;
+        }
+        @keyframes popIn { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
+        .login-header { text-align: center; margin-bottom: 18px; }
+        .login-logo { height: 52px; width: auto; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 6px 18px rgba(99,102,241,.3); }
+        .login-box h1 {
+            font-size: 1.35rem; font-weight: 800;
+            background: var(--grad-brand);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .login-sub { color: var(--muted); font-size: .82rem; margin-top: 3px; }
+        .login-sep { height: 1px; background: linear-gradient(90deg, transparent, rgba(148,163,184,.4), transparent); margin: 14px 0; }
+        .login-section-label {
+            font-size: .84rem; font-weight: 800; color: var(--text);
+            display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+        }
+        .login-section-label i { color: var(--indigo); }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: .74rem; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+        .form-group input {
+            width: 100%; padding: 10px 15px;
+            background: #f8fafc;
+            border: 1.5px solid rgba(148,163,184,.3); border-radius: 12px;
+            color: var(--text); font-size: .9rem; outline: none; transition: all .18s;
+            font-family: inherit;
+        }
+        .form-group input:focus { border-color: var(--indigo); background: #fff; box-shadow: 0 0 0 4px rgba(99,102,241,.13); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .login-error { color: var(--rose); font-size: .8rem; margin-bottom: 6px; display: none; text-align: center; font-weight: 600; }
+        .login-actions { display: flex; gap: 10px; margin-top: 16px; }
+        .login-actions .btn { flex: 1; }
+        .conn-test-result {
+            margin-top: 8px; font-size: .8rem; padding: 5px 10px;
+            border-radius: 10px; text-align: center; min-height: 28px; font-weight: 600;
+        }
+        .login-hint { font-size: .7rem; color: var(--faint); margin-top: 12px; text-align: center; line-height: 1.5; }
+
+        .app-content { display: block; }
+        .app-content.login-hidden { display: none; }
+
+        /* ── 刷新进度条 ── */
+        .refresh-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .refresh-timer { flex: 1; height: 4px; background: rgba(100,116,139,.12); border-radius: 4px; overflow: hidden; }
+        .refresh-timer .rt-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #6366f1, #06b6d4);
+            border-radius: 4px; box-shadow: 0 0 8px rgba(99,102,241,.5);
+        }
+        .last-update { font-size: .68rem; color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+        .toast {
+            position: fixed; top: 16px; right: 16px; z-index: 99999;
+            padding: 11px 20px; border-radius: 14px;
+            background: rgba(255,255,255,.95);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 12px 32px rgba(15,23,42,.16);
+            border: 1px solid rgba(148,163,184,.25);
+            color: var(--text); font-size: .85rem; font-weight: 600; display: none;
+            animation: slideIn .25s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+        /* 入场动画 */
+        .anim { animation: fadeUp .5s cubic-bezier(.4,0,.2,1) both; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+        @media (max-width: 640px) {
+            .topbar { border-radius: 16px; }
+            .node-grid, .disk-grid { grid-template-columns: 1fr; }
+            .summary-row { grid-template-columns: 1fr 1fr; }
+            .login-box { padding: 24px 20px; }
+            .clock { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 背景装饰 -->
+    <div class="bg-blobs"><span class="b1"></span><span class="b2"></span><span class="b3"></span><span class="b4"></span></div>
+    <div class="bg-grid"></div>
+
+    <!-- SVG 渐变定义 -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <linearGradient id="gCpu" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#06b6d4"/>
+            </linearGradient>
+            <linearGradient id="gMem" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#ec4899"/>
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- 登录层 -->
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-box">
+            <div class="login-header">
+                <img src="logo.png" class="login-logo" alt="Logo">
+                <h1>HPC 集群监控</h1>
+                <div class="login-sub" id="loginSub">Slurm 算力集群</div>
+            </div>
+
+            <div class="login-section-label"><i class="fas fa-user"></i> 用户名</div>
+            <div class="login-error" id="loginError">请输入用户名</div>
+            <div class="form-group">
+                <input id="loginInput" type="text" placeholder="请输入您的用户名"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+
+            <div class="login-sep"></div>
+
+            <div id="serverNameSection">
+            <div class="login-section-label"><i class="fas fa-tag"></i> 服务器命名</div>
+            <div class="form-group">
+                <input id="cfgServerName" type="text" placeholder="留空则默认：高性能计算集群"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+            <div class="login-sep"></div>
+            </div>
+
+            <div class="login-section-label"><i class="fas fa-server"></i> Slurm 集群连接</div>
+            <div class="form-group">
+                <label>集群地址</label>
+                <input id="cfgHost" placeholder="主机名或 IP"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>端口</label>
+                    <input id="cfgPort" type="number" value="22"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+                <div class="form-group"><label>SSH 用户</label>
+                    <input id="cfgUser" placeholder="集群登录用户名"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>SSH 密码</label>
+                <input id="cfgPass" type="password" placeholder="集群登录密码"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+            <div class="form-group" id="setupTokenSection" style="display:none">
+                <label>初始化口令（仅当服务器设置了 SETUP_TOKEN 时需要）</label>
+                <input id="setupToken" type="password" placeholder="SETUP_TOKEN"
+                    onkeydown="if(event.key==='Enter') doLogin()">
+            </div>
+
+            <div class="conn-test-result" id="connTestResult"></div>
+
+            <div class="login-actions">
+                <button class="btn btn-ghost" id="btnTestConn" onclick="testConn()">
+                    <i class="fas fa-plug"></i> 测试连接
+                </button>
+                <button class="btn btn-success" id="btnLogin" onclick="doLogin()">
+                    <i class="fas fa-sign-in-alt"></i> 进入监控
+                </button>
+            </div>
+            <div class="login-hint">
+                💡 首次使用请填写集群信息并「测试连接」，确认成功后点「进入监控」
+            </div>
+        </div>
+    </div>
+
+    <div class="app-content" id="appContent">
+    <div class="app">
+
+        <!-- 顶部导航 -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <span class="brand">
+                    <img src="logo.png" class="brand-logo" alt="Logo">
+                    <span class="brand-text">
+                        <span class="brand-name" id="brandName">高性能计算集群</span>
+                        <span class="title-sub" id="brandSub">HPC Cluster Monitor</span>
+                    </span>
+                </span>
+            </div>
+            <div class="topbar-right">
+                <span class="clock" id="clock">--:--:--</span>
+                <div class="conn-status" id="connStatus" onclick="openLogin()">
+                    <span class="dot gray" id="connDot"></span>
+                    <span id="connLabel">未连接</span>
+                </div>
+                <button class="btn btn-ghost" onclick="openLogin()" title="修改配置">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button class="btn" onclick="loadData(true)"><i class="fas fa-sync-alt"></i> 刷新</button>
+                <div class="user-avatar" id="userMenu">
+                    <div class="av" id="userAv">U</div>
+                    <span id="userName">用户</span>
+                    <i class="fas fa-chevron-down" style="font-size:.6rem;color:#94a3b8;"></i>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="drop-item">
+                            <i class="fas fa-play-circle"></i> 运行程序
+                            <span class="val" id="dropRunning">0</span>
+                        </div>
+                        <div class="drop-item">
+                            <i class="fas fa-microchip"></i> 可用 CPU
+                            <span class="val" id="dropCpu">0 核</span>
+                        </div>
+                        <div class="drop-item">
+                            <i class="fas fa-memory"></i> 可用内存
+                            <span class="val" id="dropMem">0 GB</span>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="drop-item logout" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i> 退出登录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="refresh-wrap">
+            <div class="refresh-timer"><div class="rt-fill" id="refreshBar"></div></div>
+            <span class="last-update" id="lastUpdate"></span>
+        </div>
+
+        <!-- 摘要卡片 -->
+        <div class="summary-row" id="summaryRow">
+            <div class="sum-card anim">
+                <div class="sc-top">
+                    <div class="sc-head">
+                        <span class="sc-chip chip-cpu"><i class="fas fa-microchip"></i></span>
+                        <div>
+                            <div class="sc-label">CPU 总量</div>
+                            <div class="sc-value" id="sCpuTot">—</div>
+                        </div>
+                    </div>
+                    <div class="ring-wrap">
+                        <svg class="ring" viewBox="0 0 60 60">
+                            <circle class="ring-bg" cx="30" cy="30" r="26"/>
+                            <circle class="ring-fg" id="cpuRingFg" cx="30" cy="30" r="26" stroke="url(#gCpu)"/>
+                        </svg>
+                        <span class="ring-pct" id="cpuRingPct">0%</span>
+                    </div>
+                </div>
+                <div class="sc-sub" id="sCpuSub">等待连接...</div>
+                <div class="sc-bar"><div class="fill" id="sCpuBar" style="width:0%"></div></div>
+            </div>
+
+            <div class="sum-card anim">
+                <div class="sc-top">
+                    <div class="sc-head">
+                        <span class="sc-chip chip-mem"><i class="fas fa-memory"></i></span>
+                        <div>
+                            <div class="sc-label">内存总量</div>
+                            <div class="sc-value" id="sMemTot">—</div>
+                        </div>
+                    </div>
+                    <div class="ring-wrap">
+                        <svg class="ring" viewBox="0 0 60 60">
+                            <circle class="ring-bg" cx="30" cy="30" r="26"/>
+                            <circle class="ring-fg" id="memRingFg" cx="30" cy="30" r="26" stroke="url(#gMem)"/>
+                        </svg>
+                        <span class="ring-pct" id="memRingPct">0%</span>
+                    </div>
+                </div>
+                <div class="sc-sub" id="sMemSub">等待连接...</div>
+                <div class="sc-bar"><div class="fill" id="sMemBar" style="width:0%"></div></div>
+            </div>
+
+            <div class="sum-card anim">
+                <div class="sc-top">
+                    <div class="sc-head">
+                        <span class="sc-chip chip-node"><i class="fas fa-server"></i></span>
+                        <div>
+                            <div class="sc-label">节点分布</div>
+                            <div class="sc-value" id="sNodes">—</div>
+                        </div>
+                    </div>
+                    <div class="donut-wrap">
+                        <svg class="donut" id="nodesDonut" viewBox="0 0 60 60"></svg>
+                        <span class="donut-center"><span id="nodesDonutCenter">0</span><small>节点</small></span>
+                    </div>
+                </div>
+                <div class="sc-sub" id="sNodesSub">等待连接...</div>
+            </div>
+
+            <div class="sum-card anim">
+                <div class="sc-top">
+                    <div class="sc-head">
+                        <span class="sc-chip chip-job"><i class="fas fa-tasks"></i></span>
+                        <div>
+                            <div class="sc-label">我的任务</div>
+                            <div class="sc-value" id="sJobs">—</div>
+                        </div>
+                    </div>
+                    <i class="fas fa-rocket" style="font-size:1.6rem;color:var(--cyan);opacity:.35;"></i>
+                </div>
+                <div class="sc-sub" id="sJobsSub">等待连接...</div>
+            </div>
+        </div>
+
+        <h3 class="section-title anim"><span class="sec-icon"><i class="fas fa-hdd"></i></span> 存储使用 <span class="badge" id="diskCount"></span></h3>
+        <div class="disk-grid" id="diskGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title anim"><span class="sec-icon"><i class="fas fa-tag"></i></span> 分区 <span class="badge" id="partCount"></span></h3>
+        <div class="part-grid" id="partGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title anim"><span class="sec-icon"><i class="fas fa-microchip"></i></span> 节点 <span class="badge" id="nodeCount"></span></h3>
+        <div class="node-grid" id="nodeGrid"><div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-server"></i><br>等待连接...</div></div>
+
+        <h3 class="section-title anim"><span class="sec-icon"><i class="fas fa-tasks"></i></span> 我的任务 <span class="badge green" id="jobCount"></span></h3>
+        <div class="job-wrap" id="jobWrap"><div class="empty-state"><i class="fas fa-inbox"></i><br>等待连接...</div></div>
+    </div>
+    </div>
+
+<!-- 节点详情弹窗 -->
+<div class="node-detail-overlay hidden" id="nodeDetailOverlay" onclick="if(event.target===this) closeNodeDetail()">
+    <div class="node-detail-box">
+        <div class="nd-title">
+            <h3><i class="fas fa-server"></i> <span id="ndName">—</span>
+                <span class="chip chip-gray" id="ndStateChip"><span class="cdot"></span><span id="ndState">—</span></span>
+            </h3>
+            <button class="nd-close" onclick="closeNodeDetail()" title="关闭 (Esc)"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="nd-sub" id="ndSub"></div>
+
+        <div class="nd-section">
+            <div class="nd-label">CPU</div>
+            <div class="nd-grid">
+                <div class="nd-item"><span>已分配 / 总数</span><b id="ndCpu">—</b></div>
+                <div class="nd-item"><span>当前负载</span><b id="ndLoad">—</b></div>
+                <div class="nd-item"><span>CPU 使用率</span><b id="ndCpuPct">—</b></div>
+                <div class="nd-item"><span>拓扑 (Socket×核×线程)</span><b id="ndTopo">—</b></div>
+            </div>
+            <div class="nd-bar">
+                <div class="bar-label"><span>使用率</span><span id="ndCpuPct2">—</span></div>
+                <div class="track"><div class="fill" id="ndCpuBar" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <div class="nd-section">
+            <div class="nd-label">内存</div>
+            <div class="nd-grid">
+                <div class="nd-item"><span>总内存</span><b id="ndMem">—</b></div>
+                <div class="nd-item"><span>已分配</span><b id="ndMemAlloc">—</b></div>
+                <div class="nd-item"><span>可用</span><b id="ndMemFree">—</b></div>
+                <div class="nd-item"><span>使用率</span><b id="ndMemPct">—</b></div>
+            </div>
+            <div class="nd-bar">
+                <div class="bar-label"><span>使用率</span><span id="ndMemPct2">—</span></div>
+                <div class="track"><div class="fill" id="ndMemBar" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <div class="nd-section">
+            <div class="nd-label">GPU / 分区</div>
+            <div class="nd-grid">
+                <div class="nd-item"><span>GPU 资源</span><b id="ndGres">—</b></div>
+                <div class="nd-item"><span>GPU 已用</span><b id="ndGresUsed">—</b></div>
+                <div class="nd-item wide"><span>所属分区</span><b id="ndParts">—</b></div>
+            </div>
+        </div>
+
+        <div class="nd-section">
+            <div class="nd-label">系统信息</div>
+            <div class="nd-grid">
+                <div class="nd-item"><span>架构</span><b id="ndArch">—</b></div>
+                <div class="nd-item"><span>操作系统</span><b id="ndOs">—</b></div>
+                <div class="nd-item"><span>节点地址</span><b id="ndAddr">—</b></div>
+                <div class="nd-item"><span>节点主机名</span><b id="ndHost">—</b></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let autoRefresh = null;
+let loading = false;
+
+/* ── 获取服务器命名 ── */
+function getServerName() {
+    return sessionStorage.getItem('server_name') || localStorage.getItem('server_name') || '高性能计算集群';
+}
+
+/* ── 应用服务器命名 ── */
+function applyServerName(name) {
+    const el = document.getElementById('brandName');
+    if (el) el.textContent = name;
+    const sub = document.getElementById('loginSub');
+    if (sub) sub.textContent = name + ' · Slurm 算力集群';
+    document.title = name + ' · HPC 集群监控';
+}
+
+function toast(m) {
+    const e = document.getElementById('toast');
+    e.textContent = m; e.style.display = 'block';
+    setTimeout(() => e.style.display = 'none', 2800);
+}
+
+const TOKEN_KEY = 'bioagent_token';
+
+function getToken() {
+    return sessionStorage.getItem(TOKEN_KEY);
+}
+
+/* HTML 转义，防止集群返回的数据注入页面（XSS） */
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function api(url, opts = {}) {
+    try {
+        opts.headers = opts.headers || {};
+        const t = getToken();
+        if (t) opts.headers['Authorization'] = 'Bearer ' + t;
+        const r = await fetch(url, opts);
+        if (r.status === 401) {
+            // 令牌已失效：停止自动刷新，避免每 30 秒空转重试
+            if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null; }
+            const ov = document.getElementById('loginOverlay');
+            if (ov && ov.classList.contains('hidden')) openLogin();
+            return { error: 'unauthorized' };
+        }
+        return await r.json();
+    }
+    catch (e) { return { error: e.message }; }
+}
+
+/* ── 解析带有单位的内存字符串为纯数字（单位统一换算为MB） ── */
+function parseToMb(str) {
+    if (!str) return 0;
+    const num = parseFloat(str);
+    if (isNaN(num)) return 0;
+    const unit = str.replace(/[0-9.]/g, '').trim().toUpperCase();
+    if (unit.startsWith('T')) return num * 1024 * 1024;
+    if (unit.startsWith('G')) return num * 1024;
+    if (unit.startsWith('M')) return num;
+    if (unit.startsWith('K')) return num / 1024;
+    return num; // 默认视为 MB
+}
+
+/* ── 数字滚动动画 ── */
+function countUp(id, target, suffix = '', dur = 900) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const n = Number(target) || 0;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        el.textContent = Math.round(n) + suffix; return;
+    }
+    const start = performance.now();
+    function tick(now) {
+        const p = Math.min((now - start) / dur, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(n * eased) + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+}
+
+/* ── 圆环进度 ── */
+const RING_C = 2 * Math.PI * 26; // r=26
+function setRing(id, pct) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const p = Math.max(0, Math.min(100, pct));
+    el.style.strokeDashoffset = RING_C * (1 - p / 100);
+}
+
+/* ── 节点分布圆环 ── */
+function buildDonut(segs) {
+    const svg = document.getElementById('nodesDonut');
+    if (!svg) return;
+    const total = segs.reduce((a, s) => a + (s.v || 0), 0);
+    let acc = 0, html = '';
+    for (const s of segs) {
+        const frac = total > 0 ? (s.v || 0) / total : 0;
+        const dash = frac * RING_C;
+        html += `<circle cx="30" cy="30" r="26" stroke="${s.c}" stroke-dasharray="${dash.toFixed(2)} ${(RING_C - dash).toFixed(2)}" stroke-dashoffset="${(RING_C - acc * RING_C).toFixed(2)}" ${frac === 0 ? 'style="opacity:0"' : ''}/>`;
+        acc += frac;
+    }
+    svg.innerHTML = html;
+    const c = document.getElementById('nodesDonutCenter');
+    if (c) c.textContent = total;
+}
+
+/* ── User Dropdown ── */
+document.addEventListener('click', function(e) {
+    const dd = document.getElementById('userDropdown');
+    const menu = document.getElementById('userMenu');
+    if (dd && menu && !menu.contains(e.target)) {
+        dd.classList.remove('show');
+    }
+});
+document.getElementById('userMenu')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    document.getElementById('userDropdown').classList.toggle('show');
+    const name = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+    if (name) refreshUserData();
+});
+
+/* ── 登录/登出 ── */
+function applyUser(name) {
+    const av = document.getElementById('userAv');
+    const nm = document.getElementById('userName');
+    if (av) av.textContent = name.charAt(0).toUpperCase();
+    if (nm) nm.textContent = name;
+}
+
+function logout() {
+    if (!confirm('确认退出登录？')) return;
+    api('/api/slurm/logout', { method: 'POST' });
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem('user_name');
+    localStorage.removeItem('user_name');
+    location.reload();
+}
+
+function getLoginPayload() {
+    const payload = {
+        host: document.getElementById('cfgHost').value.trim(),
+        port: parseInt(document.getElementById('cfgPort').value) || 22,
+        username: document.getElementById('cfgUser').value.trim(),
+        password: document.getElementById('cfgPass').value,
+    };
+    const st = document.getElementById('setupToken');
+    if (st && st.value.trim()) payload.setupToken = st.value.trim();
+    return payload;
+}
+
+async function loginWith(payload, okText) {
+    const r = await api('/api/slurm/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (r.ok && r.token) {
+        sessionStorage.setItem(TOKEN_KEY, r.token);
+        return { ok: true, hostname: r.hostname };
+    }
+    return { ok: false, error: r.error || '连接失败' };
+}
+
+async function testConn() {
+    const btn = document.getElementById('btnTestConn');
+    const res = document.getElementById('connTestResult');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 测试中...';
+    res.innerHTML = '<span style="color:#64748b;">⏳ 正在连接...</span>';
+    const payload = getLoginPayload();
+    if (!payload.host || !payload.username || !payload.password) {
+        res.innerHTML = '<span style="color:#f43f5e;">❌ 请填写完整集群信息</span>';
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> 测试连接';
+        return;
+    }
+    // 只验证凭据：不修改集群配置、不签发登录令牌
+    const r = await api('/api/slurm/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> 测试连接';
+    if (r.ok && r.hostname) {
+        res.innerHTML = '<span style="color:#10b981;">✅ 连接成功 · ' + esc(r.hostname) + '</span>';
+    } else {
+        res.innerHTML = '<span style="color:#f43f5e;">❌ ' + esc(r.error||'连接失败') + '</span>';
+    }
+}
+
+async function doLogin() {
+    const input = document.getElementById('loginInput');
+    const name = input.value.trim();
+    if (!name) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = '请输入用户名';
+        return;
+    }
+    document.getElementById('loginError').style.display = 'none';
+
+    // 登录：后端验证 SSH 凭据成功后签发会话令牌
+    const payload = getLoginPayload();
+    if (!payload.host || !payload.username || !payload.password) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = '请填写完整的集群连接信息';
+        return;
+    }
+    const btn = document.getElementById('btnLogin');
+    btn.disabled = true;
+    const r = await loginWith(payload);
+    btn.disabled = false;
+    if (!r.ok) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = r.error || '连接失败';
+        return;
+    }
+
+    // 保存服务器命名
+    const serverName = document.getElementById('cfgServerName').value.trim() || '高性能计算集群';
+    sessionStorage.setItem('server_name', serverName);
+    localStorage.setItem('server_name', serverName);
+    applyServerName(serverName);
+
+    // 保存登录态
+    sessionStorage.setItem('user_name', name);
+    localStorage.setItem('user_name', name);
+    applyUser(name);
+
+    // 隐藏登录层，显示应用内容
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('appContent').classList.remove('login-hidden');
+    toast('👋 欢迎，' + name);
+    loadData();
+    startAutoRefresh();
+    setTimeout(() => refreshUserData(), 1500);
+}
+
+/* 重新打开登录层（用于设置配置） */
+function openLogin() {
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    document.getElementById('appContent').classList.add('login-hidden');
+    document.getElementById('connTestResult').innerHTML = '';
+    const errEl = document.getElementById('loginError');
+    if (errEl) { errEl.style.display = 'none'; }
+    const name = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+    if (name) document.getElementById('loginInput').value = name;
+    const serverNameSection = document.getElementById('serverNameSection');
+    if (localStorage.getItem('server_name')) {
+        serverNameSection.style.display = 'none';
+    } else {
+        serverNameSection.style.display = '';
+    }
+    api('/api/slurm/config').then(r => {
+        if (r.configured && r.config) {
+            document.getElementById('cfgHost').value = r.config.host || '';
+            document.getElementById('cfgPort').value = r.config.port || 22;
+            document.getElementById('cfgUser').value = r.config.username || '';
+        }
+        document.getElementById('cfgPass').value = '';
+        const stSec = document.getElementById('setupTokenSection');
+        if (stSec) {
+            if (r.setupTokenRequired && !r.configured) {
+                stSec.style.display = '';
+            } else {
+                stSec.style.display = 'none';
+                const st = document.getElementById('setupToken');
+                if (st) st.value = '';
+            }
+        }
+    });
+}
+
+/* ── 刷新用户数据（下拉菜单中的 CPU/内存/运行数） ── */
+async function refreshUserData() {
+    try {
+        const [squeueRes, assocRes] = await Promise.all([
+            api('/api/slurm/squeue'),
+            api('/api/slurm/assoc'),
+        ]);
+
+        if (squeueRes.jobs && Array.isArray(squeueRes.jobs)) {
+            const running = squeueRes.jobs.filter(j => {
+                const st = (j.state || '').toUpperCase();
+                return st === 'R' || st === 'RUNNING';
+            }).length;
+            const pending = squeueRes.jobs.filter(j => {
+                const st = (j.state || '').toUpperCase();
+                return st === 'PD' || st === 'PENDING';
+            }).length;
+            document.getElementById('dropRunning').textContent = running + ' / ' + (running + pending);
+        }
+
+        if (assocRes && assocRes.associations) {
+            const cfgRes = await api('/api/slurm/config');
+            const sshUser = (cfgRes && cfgRes.config && cfgRes.config.username) ? cfgRes.config.username.trim() : '';
+            const userAssoc = sshUser ? assocRes.associations.find(a =>
+                a.user && a.user.toLowerCase() === sshUser.toLowerCase()
+            ) : null;
+
+            if (userAssoc) {
+                const cpu = userAssoc.grp_cpus || 0;
+                document.getElementById('dropCpu').textContent = cpu > 0 ? cpu + ' 核' : '无限制';
+                const memMb = userAssoc.grp_mem || 0;
+                document.getElementById('dropMem').textContent = memMb > 0 ? (memMb / 1024).toFixed(0) + ' GB' : '无限制';
+            }
+        }
+    } catch(e) {
+        // 静默处理
+    }
+}
+
+function setConn(ok, msg) {
+    const dot = document.getElementById('connDot');
+    const label = document.getElementById('connLabel');
+    dot.className = 'dot ' + (ok===null?'yellow':ok?'green':'red');
+    label.textContent = msg||(ok?'在线':'离线');
+}
+
+function pctColor(p) { return p>80?'#f43f5e':p>50?'#f59e0b':'#10b981'; }
+
+function setBar(id, pct) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    el.style.background = pctColor(pct);
+}
+
+/* 用户家目录统计单独请求：du -sh 可能很慢，不能阻塞整页刷新 */
+function fetchUserdfLazy() {
+    api('/api/slurm/userdf').then(r => {
+        if (r && !r.error && r.usage) updateUserdf(r);
+    });
+}
+
+let hasLoadedOnce = false;
+function resetRefreshBar() {
+    const bar = document.getElementById('refreshBar');
+    if (!bar) return;
+    bar.style.transition = 'none';
+    bar.style.width = '0%';
+    void bar.offsetWidth; // 强制同步重排，确保下一次动画生效
+}
+function pulseRefreshBar() {
+    const bar = document.getElementById('refreshBar');
+    if (!bar) return;
+    bar.style.transition = 'width .6s ease';
+    bar.style.width = '100%';
+}
+
+/* ── 核心加载（一键接口优先，失败时回退到逐个接口） ── */
+async function loadData(manual = false) {
+    if (loading) return;
+    loading = true;
+    try {
+        resetRefreshBar();
+        // 后台自动刷新保持安静，只有首次加载或手动刷新才显示“加载中”
+        if (manual || !hasLoadedOnce) setConn(null,'加载中...');
+
+        try {
+            const h = await fetch('/api/health', { method:'HEAD', cache:'no-store' });
+            if (!h.ok) throw new Error('后端异常');
+        } catch(e) {
+            setConn(false,'后端未启动');
+            resetRefreshBar();
+            return;
+        }
+
+        const cfg = await api('/api/slurm/config');
+        if (cfg.error) { setConn(false,'后端异常'); return; }
+        if (!cfg.configured) { setConn(false,'未配置'); return; }
+
+        const all = await api('/api/slurm/all');
+        if (all && all.error === 'unauthorized') { setConn(false, '登录失效'); return; }
+        if (!all || all.error) {
+            // 回退：逐个请求
+            const [sinfoRes, nodesRes, squeueRes, dfRes] = await Promise.all([
+                api('/api/slurm/sinfo'),
+                api('/api/slurm/nodes'),
+                api('/api/slurm/squeue'),
+                api('/api/slurm/df'),
+            ]);
+            let freeRes = await api('/api/slurm/free');
+            if (freeRes.error && !freeRes.total) { await new Promise(r => setTimeout(r, 2000)); freeRes = await api('/api/slurm/free'); }
+
+            if (sinfoRes.error || nodesRes.error) { setConn(false,'连接失败'); return; }
+            setConn(true, '在线 · ' + cfg.config.host);
+            renderJobs(squeueRes.jobs, squeueRes.pending, squeueRes.running, squeueRes.error);
+            renderSummary(nodesRes.summary);
+            renderDisks(dfRes.mounts||[], freeRes, null);
+            renderPartitions(sinfoRes.partitions);
+            renderNodes(nodesRes.nodes, nodesRes.summary);
+            fetchUserdfLazy();
+            pulseRefreshBar();
+            setLastUpdate();
+            return;
+        }
+
+        // 一键接口成功
+        setConn(true, '在线 · ' + cfg.config.host);
+        const sInfo = (all.sinfo && !all.sinfo.error) ? all.sinfo : null;
+        const sNodes = (all.nodes && !all.nodes.error) ? all.nodes : null;
+        const sQueue = (all.squeue && !all.squeue.error) ? all.squeue : null;
+        renderJobs((sQueue && sQueue.jobs) || [], (sQueue && sQueue.pending) || 0, (sQueue && sQueue.running) || 0, all.squeue ? all.squeue.error : null);
+        renderSummary(sNodes ? sNodes.summary : null);
+        renderDisks((all.df && all.df.mounts) || [], all.free, null);
+        renderPartitions(sInfo ? sInfo.partitions : []);
+        renderNodes(sNodes ? sNodes.nodes : []);
+        fetchUserdfLazy();
+        pulseRefreshBar();
+        setLastUpdate();
+    } finally {
+        hasLoadedOnce = true;
+        loading = false;
+    }
+}
+
+function setLastUpdate() {
+    const el = document.getElementById('lastUpdate');
+    if (el) el.textContent = '🔄 更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false });
+}
+
+/* 摘要 */
+function renderSummary(s) {
+    if (!s) {
+        document.getElementById('sCpuTot').textContent = '—';
+        document.getElementById('sMemTot').textContent = '—';
+        document.getElementById('sNodes').textContent = '—';
+        return;
+    }
+    const cpuPct = s.totalCpu>0 ? Math.round(s.allocCpu/s.totalCpu*100) : 0;
+    const memPct = s.totalMem>0 ? Math.round(s.allocMem/s.totalMem*100) : 0;
+    const total = (s.idleCount||0)+(s.mixedCount||0)+(s.allocCount||0)+(s.downCount||0)+(s.otherCount||0);
+    const key = [s.totalCpu, s.allocCpu, s.totalMem, s.allocMem, s.idleCount, s.mixedCount, s.allocCount, s.downCount, s.otherCount].join('|');
+    if (key === lastSummary) {
+        // 数据未变化：直接写最终值，不重复播放数字/圆环动画，避免页面“反复闪”
+        document.getElementById('sCpuTot').textContent = s.totalCpu + ' 核';
+        document.getElementById('sMemTot').textContent = Math.round(s.totalMem/1024) + ' GB';
+        document.getElementById('sNodes').textContent = total;
+        return;
+    }
+    lastSummary = key;
+    countUp('sCpuTot', s.totalCpu, ' 核');
+    document.getElementById('sCpuSub').textContent = (s.totalCpu-s.allocCpu) + ' 空闲 · ' + s.allocCpu + ' 已分配';
+    setBar('sCpuBar', cpuPct);
+    setRing('cpuRingFg', cpuPct);
+    document.getElementById('cpuRingPct').textContent = cpuPct+'%';
+
+    countUp('sMemTot', Math.round(s.totalMem/1024), ' GB');
+    document.getElementById('sMemSub').textContent = Math.round((s.totalMem-s.allocMem)/1024)+'G 空闲 · '+Math.round(s.allocMem/1024)+'G 已分配';
+    setBar('sMemBar', memPct);
+    setRing('memRingFg', memPct);
+    document.getElementById('memRingPct').textContent = memPct+'%';
+
+    countUp('sNodes', total);
+    buildDonut([
+        { v: s.idleCount,  c: '#10b981' },
+        { v: s.mixedCount, c: '#f59e0b' },
+        { v: s.allocCount, c: '#f43f5e' },
+        { v: s.downCount,  c: '#94a3b8' },
+        { v: s.otherCount, c: '#818cf8' },
+    ]);
+    const parts = [];
+    if (s.idleCount>0)  parts.push('<span class="chip chip-green"><span class="cdot"></span>'+s.idleCount+' 空闲</span>');
+    if (s.mixedCount>0) parts.push('<span class="chip chip-amber"><span class="cdot"></span>'+s.mixedCount+' 混合</span>');
+    if (s.allocCount>0) parts.push('<span class="chip chip-rose"><span class="cdot"></span>'+s.allocCount+' 满载</span>');
+    if (s.downCount>0)  parts.push('<span class="chip chip-gray"><span class="cdot"></span>'+s.downCount+' 离线</span>');
+    if (s.otherCount>0) parts.push('<span class="chip chip-blue"><span class="cdot"></span>'+s.otherCount+' 其他</span>');
+    document.getElementById('sNodesSub').innerHTML = parts.join(' ') || '<span class="chip chip-gray"><span class="cdot"></span>暂无节点</span>';
+
+    const jc = document.getElementById('sJobs');
+    if (jc && jc.dataset.running) {
+        renderJobsSummary(jc.dataset.running, jc.dataset.pending);
+    }
+}
+
+/* 任务摘要 chips */
+function renderJobsSummary(running, pending) {
+    const el = document.getElementById('sJobsSub');
+    if (!el) return;
+    const r = Number(running)||0, p = Number(pending)||0;
+    let chips = '';
+    if (r>0) chips += '<span class="chip chip-green"><span class="cdot"></span>'+r+' 运行</span>';
+    if (p>0) chips += '<span class="chip chip-amber"><span class="cdot"></span>'+p+' 等待</span>';
+    if (!chips) chips = '<span class="chip chip-gray"><span class="cdot"></span>暂无任务</span>';
+    el.innerHTML = chips;
+}
+
+/* 磁盘与账户内存转换 */
+let diskCache = { mounts: [], free: null, userdf: null };
+function renderDisks(mounts, freeRes, userdfRes) {
+    diskCache = { mounts: mounts || [], free: freeRes, userdf: userdfRes || null };
+    _renderDiskCards();
+}
+function updateUserdf(userdfRes) {
+    diskCache.userdf = userdfRes || null;
+    _renderDiskCards();
+}
+function _renderDiskCards() {
+    const mounts = diskCache.mounts;
+    const freeRes = diskCache.free;
+    const userdfRes = diskCache.userdf;
+    const grid = document.getElementById('diskGrid');
+    const count = document.getElementById('diskCount');
+
+    let memCard = '';
+    if (freeRes && freeRes.total && freeRes.used) {
+        const totalMb = parseToMb(freeRes.total);
+        const usedMb = parseToMb(freeRes.used);
+        const pct = totalMb > 0 ? Math.round((usedMb / totalMb) * 100) : 0;
+        memCard = `<div class="disk-card" style="border-top:3px solid #8b5cf6;">
+            <div class="dc-header"><span class="dc-mount"><i class="fas fa-microchip"></i> 当前节点内存</span><span class="dc-fs">free -h</span></div>
+            <div class="dc-stats"><span>总量<span class="val">${esc(freeRes.total)}</span></span><span>已用<span class="val">${esc(freeRes.used)}</span></span><span>可用<span class="val">${esc(freeRes.available || '—')}</span></span><span class="dc-pct" style="color:${pctColor(pct)};">${pct}%</span></div>
+            <div class="dc-bar"><div class="fill" style="width:${Math.min(pct,100)}%;background:${pctColor(pct)};"></div></div>
+        </div>`;
+    }
+
+    const userCard = userdfRes&&userdfRes.usage ? `<div class="disk-card" style="border-top:3px solid #6366f1;">
+        <div class="dc-header"><span class="dc-mount"><i class="fas fa-user"></i> 用户家目录</span><span class="dc-fs">${esc(userdfRes.userDir||'~')}</span></div>
+        <div class="dc-stats"><span>已用空间 <span class="val" style="font-size:1.25rem;font-weight:800;color:#6366f1;">${esc(userdfRes.usage)}</span></span></div>
+    </div>` : '';
+
+    const diskCards = (mounts||[]).map(d => {
+        const pct = parseInt(d.usePct)||0;
+        const c = pctColor(pct);
+        return `<div class="disk-card"><div class="dc-header"><span class="dc-mount"><i class="fas fa-folder"></i> ${esc(d.mounted)}</span><span class="dc-fs">${esc(d.filesystem)}</span></div>
+            <div class="dc-stats"><span>总容量<span class="val">${esc(d.size)}</span></span><span>已用<span class="val">${esc(d.used)}</span></span><span>可用<span class="val">${esc(d.avail)}</span></span><span class="dc-pct" style="color:${c};">${esc(d.usePct)}</span></div>
+            <div class="dc-bar"><div class="fill" style="width:${pct}%;background:${c};"></div></div></div>`;
+    }).join('');
+    const allCards = [memCard, userCard, diskCards].filter(Boolean).join('');
+    count.textContent = (mounts||[]).length + ' 个挂载点';
+    grid.innerHTML = allCards || '<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>暂无信息</div>';
+}
+
+/* 分区 */
+function renderPartitions(partitions) {
+    if (!partitions||!partitions.length) {
+        document.getElementById('partGrid').innerHTML='<div class="empty-state" style="grid-column:1/-1;"><i class="fas fa-inbox"></i><br>暂无分区</div>';
+        document.getElementById('partCount').textContent=''; return;
+    }
+    document.getElementById('partCount').textContent = partitions.length+' 个';
+    document.getElementById('partGrid').innerHTML = partitions.map(p => {
+        const pct = p.totalNodes>0 ? Math.round(p.totalAlloc/p.totalNodes*100) : 0;
+        const c = pctColor(pct);
+        const tip = '每节点 ' + esc(p.cpus||'-') + ' 核 · ' + esc(p.mem||'-') + ' MB';
+        return `<div class="part-box"><div class="pb-name"><i class="fas fa-layer-group"></i>${esc(p.name)}</div><div class="pb-stat">${p.totalAlloc}/${p.totalNodes} 节点 · ${p.totalNodes-p.totalAlloc} 空闲</div><div class="pb-bar"><div class="pb-fill" style="width:${Math.min(pct,100)}%;background:${c}"></div></div><div class="pb-tip">${tip}</div></div>`;
+    }).join('');
+}
+
+/* 节点 */
+function nodeState(s) {
+    const st = String(s||'').toUpperCase();
+    if (st.startsWith('IDLE')) return { cls:'tag-idle', chip:'chip-green', label:'空闲', card:'nc-idle' };
+    if (st.startsWith('MIX'))  return { cls:'tag-mix',  chip:'chip-amber', label:'混合', card:'nc-mix' };
+    if (st.startsWith('ALLOC'))return { cls:'tag-alloc',chip:'chip-rose',  label:'满载', card:'nc-alloc' };
+    if (st.startsWith('DOWN')||st.startsWith('DRAIN')||st.startsWith('FAIL')||st.startsWith('NOT_RESPONDING')||st.startsWith('MAINT'))
+        return { cls:'tag-down', chip:'chip-gray', label:'离线', card:'nc-down' };
+    return { cls:'', chip:'chip-blue', label: esc(s||'未知'), card:'' };
+}
+
+let lastNodes = [];
+let lastSummary = null;
+function renderNodes(nodes) {
+    lastNodes = nodes || [];
+    if (!nodes||!nodes.length) {
+        document.getElementById('nodeGrid').innerHTML='<div class="empty-state"><i class="fas fa-server"></i><br>暂无节点</div>';
+        document.getElementById('nodeCount').textContent=''; return;
+    }
+    document.getElementById('nodeCount').textContent = nodes.length+' 个';
+    document.getElementById('nodeGrid').innerHTML = nodes.map((n, i) => {
+        const cpuPct = n.cpuTot>0?Math.round(n.cpuAlloc/n.cpuTot*100):0;
+        const memPct = n.realMemory>0?Math.round(n.allocMem/n.realMemory*100):0;
+        const st = nodeState(n.state);
+        const gpuTag = n.gres&&n.gres!=='none'&&n.gres!=='(null)'?`<span class="gpu-tag"><i class="fas fa-microchip"></i> ${esc(n.gres)}</span>`:'';
+        return `<div class="node-card ${st.card}" onclick="openNodeDetail(${i})" onkeydown="if(event.key==='Enter') openNodeDetail(${i})" role="button" tabindex="0" title="点击查看节点详情"><div class="nc-header"><span class="nc-name"><i class="fas fa-server"></i> ${esc(n.name)}${gpuTag}</span><span class="chip ${st.chip}"><span class="cdot"></span>${esc(st.label)}</span></div>
+            <div class="nc-stats"><div class="nc-stat"><span>CPU</span><b>${n.cpuAlloc} / ${n.cpuTot}</b></div><div class="nc-stat"><span>负载</span><b>${n.cpuLoad.toFixed(1)}</b></div><div class="nc-stat"><span>内存</span><b>${(n.allocMem/1024).toFixed(0)} / ${(n.realMemory/1024).toFixed(0)}G</b></div><div class="nc-stat"><span>可用</span><b>${(n.freeMem/1024).toFixed(0)}G</b></div></div>
+            <div class="nc-bar"><div class="bar-label"><span><i class="fas fa-microchip" style="font-size:.6rem;"></i> CPU 使用率</span><span>${cpuPct}%</span></div><div class="track"><div class="fill" style="width:${cpuPct}%;background:${pctColor(cpuPct)}"></div></div></div>
+            <div class="nc-bar"><div class="bar-label"><span><i class="fas fa-memory" style="font-size:.6rem;"></i> 内存使用率</span><span>${memPct}%</span></div><div class="track"><div class="fill" style="width:${memPct}%;background:${pctColor(memPct)}"></div></div></div>
+            <div class="nc-parts"><i class="fas fa-tags"></i> ${esc((n.partitions||'-').replace(/,/g,', '))}</div></div>`;
+    }).join('');
+}
+
+/* ── 节点详情弹窗 ── */
+function gb(v) {
+    const n = Number(v);
+    return isFinite(n) && n >= 0 ? (n / 1024).toFixed(0) + ' GB' : '—';
+}
+
+function openNodeDetail(idx) {
+    const n = lastNodes[idx];
+    if (!n) return;
+    const st = nodeState(n.state);
+    const cpuPct = n.cpuTot > 0 ? Math.round(n.cpuAlloc / n.cpuTot * 100) : 0;
+    const memPct = n.realMemory > 0 ? Math.round(n.allocMem / n.realMemory * 100) : 0;
+    const topo = [n.sockets, n.coresPerSocket, n.threadsPerCore].filter(Boolean).join(' × ') || '—';
+
+    document.getElementById('ndName').textContent = n.name || '—';
+    document.getElementById('ndStateChip').className = 'chip ' + st.chip;
+    document.getElementById('ndState').textContent = st.label;
+    document.getElementById('ndSub').textContent = n.state ? ('SLURM 状态: ' + n.state) : '';
+
+    document.getElementById('ndCpu').textContent = n.cpuAlloc + ' / ' + n.cpuTot + ' 核';
+    document.getElementById('ndLoad').textContent = n.cpuLoad ? n.cpuLoad.toFixed(2) : '—';
+    document.getElementById('ndCpuPct').textContent = cpuPct + '%';
+    document.getElementById('ndCpuPct2').textContent = cpuPct + '%';
+    document.getElementById('ndTopo').textContent = topo;
+    const cpuBar = document.getElementById('ndCpuBar');
+    cpuBar.style.width = Math.min(cpuPct, 100) + '%';
+    cpuBar.style.background = pctColor(cpuPct);
+
+    document.getElementById('ndMem').textContent = gb(n.realMemory);
+    document.getElementById('ndMemAlloc').textContent = gb(n.allocMem);
+    document.getElementById('ndMemFree').textContent = gb(n.freeMem);
+    document.getElementById('ndMemPct').textContent = memPct + '%';
+    document.getElementById('ndMemPct2').textContent = memPct + '%';
+    const memBar = document.getElementById('ndMemBar');
+    memBar.style.width = Math.min(memPct, 100) + '%';
+    memBar.style.background = pctColor(memPct);
+
+    document.getElementById('ndGres').textContent = (n.gres && n.gres !== 'none') ? n.gres : '无';
+    document.getElementById('ndGresUsed').textContent = n.gresUsed || '—';
+    document.getElementById('ndParts').textContent = (n.partitions || '—').replace(/,/g, ', ');
+    document.getElementById('ndArch').textContent = n.arch || '—';
+    document.getElementById('ndOs').textContent = n.os || '—';
+    document.getElementById('ndAddr').textContent = n.nodeAddr || '—';
+    document.getElementById('ndHost').textContent = n.nodeHostname || '—';
+
+    document.getElementById('nodeDetailOverlay').classList.remove('hidden');
+}
+
+function closeNodeDetail() {
+    document.getElementById('nodeDetailOverlay').classList.add('hidden');
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeNodeDetail();
+});
+
+/* 任务 */
+function jobStyle(s) {
+    const st = String(s||'').trim().toUpperCase();
+    if (st==='R'||st==='RUNNING')     return { chip:'chip-green', label:'运行中' };
+    if (st==='PD'||st==='PENDING')    return { chip:'chip-amber', label:'排队中' };
+    if (st==='CG'||st==='COMPLETING') return { chip:'chip-blue',  label:'完成中' };
+    if (st==='CD'||st==='COMPLETED')  return { chip:'chip-cyan',  label:'已完成' };
+    if (st==='F'||st==='FAILED')      return { chip:'chip-rose',  label:'失败' };
+    if (st==='CA'||st==='CANCELLED')  return { chip:'chip-gray',  label:'已取消' };
+    return { chip:'chip-gray', label: esc(st) || '-' };
+}
+
+function renderJobs(jobs, pending, running, err) {
+    const wrap = document.getElementById('jobWrap');
+    const count = document.getElementById('jobCount');
+    const sJobs = document.getElementById('sJobs');
+
+    if (!jobs||jobs.length===0) {
+        if(count) count.textContent='';
+        if(sJobs) { sJobs.textContent='0'; sJobs.dataset.running='0'; sJobs.dataset.pending='0'; }
+        renderJobsSummary(0, 0);
+        if (err) {
+            wrap.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i><br>任务数据获取失败：' + esc(err) + '</div>';
+        } else {
+            wrap.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle" style="color:#10b981;"></i><br>当前没有运行中的任务</div>';
+        }
+        return;
+    }
+
+    sJobs.textContent = jobs.length;
+    sJobs.dataset.running = running || 0;
+    sJobs.dataset.pending = pending || 0;
+
+    count.textContent = (running||0) + ' 运行 · ' + (pending||0) + ' 等待';
+    renderJobsSummary(running, pending);
+
+    wrap.innerHTML = `<div class="job-table-wrap"><table class="job-table"><thead><tr><th>JOBID</th><th>分区</th><th>名称</th><th>状态</th><th>运行时间</th><th>节点</th><th>GPU</th><th>排队原因</th></tr></thead><tbody>${
+        jobs.map(j=>{
+            const st = jobStyle(j.state);
+            const gpu = (j.gpu && j.gpu !== '(null)') ? j.gpu : '-';
+            const reason = (j.reason && j.reason !== '(null)') ? j.reason : '-';
+            return `<tr><td class="mono">${esc(j.jobid)}</td><td>${esc(j.partition||'-')}</td><td>${esc(j.name||'-')}</td><td><span class="chip ${st.chip}"><span class="cdot"></span>${esc(st.label)}</span></td><td>${esc(j.time||'-')}</td><td>${esc(j.nodes||'-')}</td><td>${esc(gpu)}</td><td class="job-reason" title="${esc(reason)}">${esc(reason)}</td></tr>`;
+        }).join('')
+    }</tbody></table></div>`;
+}
+
+/* 自动刷新 */
+function startAutoRefresh() { if(autoRefresh)clearInterval(autoRefresh); autoRefresh=setInterval(loadData,30000); }
+
+/* ── 时钟 ── */
+setInterval(() => {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+}, 1000);
+
+/* ── 入场动画（交错） ── */
+(function stagger() {
+    document.querySelectorAll('.anim').forEach((el, i) => {
+        el.style.animationDelay = (i * 70) + 'ms';
+    });
+})();
+
+/* ── 启动 ── */
+(function init() {
+    const savedUser = sessionStorage.getItem('user_name') || localStorage.getItem('user_name');
+    const token = getToken();
+
+    if (savedUser && token) {
+        sessionStorage.setItem('user_name', savedUser);
+        applyUser(savedUser);
+        applyServerName(getServerName());
+        document.getElementById('loginOverlay').classList.add('hidden');
+        document.getElementById('appContent').classList.remove('login-hidden');
+    } else {
+        openLogin();
+    }
+
+    fetch('/api/health', { method:'HEAD', cache:'no-store' }).then(r => {
+        if (!r.ok) throw new Error('后端未响应');
+        api('/api/slurm/config').then(r => {
+            if (r.configured && r.config) {
+                document.getElementById('cfgHost').value = r.config.host || '';
+                document.getElementById('cfgPort').value = r.config.port || 22;
+                document.getElementById('cfgUser').value = r.config.username || '';
+            }
+            if (r.configured && !r.error) {
+                if (token) {
+                    loadData();
+                    startAutoRefresh();
+                    if (savedUser) setTimeout(() => refreshUserData(), 2000);
+                }
+            } else if (!r.error && !r.configured) {
+                setConn(false, '未配置');
+            } else if (r.error) {
+                setConn(false, '登录失效');
+            }
+        });
+    }).catch(() => {
+        if (!savedUser) return;
+        document.getElementById('connDot').className = 'dot red';
+        document.getElementById('connLabel').textContent = '后端未启动';
+        document.getElementById('summaryRow').innerHTML =
+            '<div style="grid-column:1/-1;text-align:center;padding:50px 20px;">' +
+            '<i class="fas fa-plug" style="font-size:2.5rem;color:#f43f5e;margin-bottom:14px;display:block;"></i>' +
+            '<div style="font-size:1.1rem;color:#be123c;font-weight:800;margin-bottom:8px;">❌ 后端服务未运行</div>' +
+            '<div style="font-size:.88rem;color:#64748b;margin-bottom:14px;">请双击桌面上的 BioAgent.vbs 启动后端服务</div>' +
+            '<button class="btn" onclick="location.reload()" style="margin-top:4px;"><i class="fas fa-redo"></i> 重试连接</button>' +
+            '</div>';
+        document.getElementById('diskGrid').innerHTML = '';
+        document.getElementById('partGrid').innerHTML = '';
+        document.getElementById('nodeGrid').innerHTML = '';
+        document.getElementById('jobWrap').innerHTML = '';
+    });
+
+    // URL 参数传用户名
+    const params = new URLSearchParams(window.location.search);
+    const bioUser = params.get('user');
+    if (bioUser) {
+        sessionStorage.setItem('user_name', bioUser.trim());
+        localStorage.setItem('user_name', bioUser.trim());
+        document.getElementById('loginInput').value = bioUser.trim();
+        applyServerName(getServerName());
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+})();
+</script>
+</body>
+</html>
